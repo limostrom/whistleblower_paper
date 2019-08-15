@@ -36,26 +36,33 @@ use master_dataset_bk, clear
 =============================================================================================
 *									First fix data errors
 *(a) Add missing WBs
-	expand 2 if caption == "US ex rel Barnes, Tony; Borggreen, Raymond; Riche, Roger v Akal Security Inc", gen(exp)
+	expand 2 if caption == "US ex rel Barnes, Tony; Borggreen, Raymond; Riche, Roger v Akal Security Inc" & ///
+				wb_full_name == "Barnes, Tony", gen(exp)
 		replace wb_full_name = "Borggreen, Raymond" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Barnes, Tony; Borggreen, Raymond; Riche, Roger v Akal Security Inc", gen(exp)
+	expand 2 if caption == "US ex rel Barnes, Tony; Borggreen, Raymond; Riche, Roger v Akal Security Inc" & ///
+				wb_full_name == "Barnes, Tony", gen(exp)
 		replace wb_full_name = "Richie, Roger" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Batiste, Than v Rehabilitation Services of Baton Rouge LLC et al", gen(exp)
+	expand 2 if caption == "US ex rel Batiste, Than v Rehabilitation Services of Baton Rouge LLC et al" & ///
+				wb_full_name == "Vincent, Terryl", gen(exp)
 		replace wb_full_name = "Batiste, Than" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Bintzler, Doug; Jordan, Michael et al  v Board of Trustees O/T University of Cincinnati", gen(exp)
+	expand 2 if caption == "US ex rel Bintzler, Doug; Jordan, Michael et al  v Board of Trustees O/T University of Cincinnati" & ///
+				wb_full_name == "Jordan, Michael", gen(exp)
 		replace wb_full_name = "Song, Yonggen" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Brackett, Carl v Heart Center of East Alabama", gen(exp)
+	expand 2 if caption == "US ex rel Brackett, Carl v Heart Center of East Alabama" & ///
+				wb_full_name == "Brackett, Carl", gen(exp)
 		replace wb_full_name = "Martin, Dana" if exp == 1
 		replace job_title_at_fraud_firm = "" if exp == 1 // have to manually replace because it's empty; won't merge update
 		drop exp
-	expand 2 if caption == "US ex rel Freel, Hugh E; Lucie, Eric R v Unidyne Corp", gen(exp)
+	expand 2 if caption == "US ex rel Freel, Hugh E; Lucie, Eric R v Unidyne Corp" & ///
+				wb_full_name == "Freel, Hugh E.", gen(exp)
 		replace wb_full_name = "Lucie, Eric" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Mattiace, Dianne; Cortese, Victoria v Greenberg, Melo & Dennis et al", gen(exp)
+	expand 2 if caption == "US ex rel Mattiace, Dianne; Cortese, Victoria v Greenberg, Melo & Dennis et al" & ///
+				wb_full_name == "Mattiace, Dianne", gen(exp)
 		replace wb_full_name = "Cortese, Victoria" if exp == 1
 		drop exp
 
