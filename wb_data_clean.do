@@ -65,12 +65,19 @@ use master_dataset_bk, clear
 				wb_full_name == "Mattiace, Dianne", gen(exp)
 		replace wb_full_name = "Cortese, Victoria" if exp == 1
 		drop exp
+	expand 2 if caption == "US ex rel Longville, Patricia; McCormick, Moses v Cnty of Summit; Cnty of Summit Bd of Mental et al" & ///
+				wb_full_name == "Mccormick, Moses", gen(exp)
+		replace wb_full_name == "Longville, Patricia" if exp == 1
+		drop exp
 
-*(b) Drop nonsensical WBs (usually a combination of one WB's first name and another's last name)
+*(b) Drop observations with missing case documents or nonsensical WBs 
+*		(usually a combination of one WB's first name and another's last name)
 	drop if wb_full_name == "Elaine; Boone" & ///
 		caption == "US ex rel Bennett, Elaine; Boone, Donald P v Boston Scientific Corp F/K/A Guidant Corp"
 	drop if wb_full_name == "Rockhill Pain Specialists, P.A." & ///
 		caption == "US ex rel Hancock, Dan L et al v St Joseph Medical Center; SJ Pain Associates Inc et al"
+	drop if wb_full_name == "Thompson, Craig" & ///
+		caption == "US ex rel Thompson, Craig MD v Lifepointhospitals Inc; Aswell, Charles Dr"
 
 *(c) Fix incorrect names and captions so the corrected excel files can be merged in on caption and wb_full_name
 	replace caption = "US ex rel Dilback, Harold v General Electric Co" if case_id == 351 & wb_full_name == "Lefan, Dennis"
@@ -79,9 +86,18 @@ use master_dataset_bk, clear
 *(d) Fix observations where WB worked for more than one company
 	replace internal = 0 if wb_full_name == Mateski, Steven" & conm == "NORTHROP GRUMMAN CORP" & ///
 		caption == "US ex rel Mateski, Steven v Raytheon Co; Northrop Grumman Corp"
+	replace internal = 0 if wb_full_name == "Masters, Thomas R." & conm == "METROPOLITN MTG & SEC  -CL A" & ///
+		caption == "US ex rel Masters, Thomas R v Sandifur, Cantwell Paul Jr; Metropolitan Mortgage & Securities Co Inc"
+	replace job_title_at_fraud_firm = "" if wb_full_name == "Masters, Thomas R." & conm == "METROPOLITN MTG & SEC  -CL A" & ///
+		caption == "US ex rel Masters, Thomas R v Sandifur, Cantwell Paul Jr; Metropolitan Mortgage & Securities Co Inc"
 
 *(e) Merge with update replace options to correct all other variables (reported internaly, response, retaliation, etc.)
 
+
+	foreach var of varlist auditor billing colleague direct_supervisor gov hotline hr ///
+							legalcompliance relevantdirector topmanager response_* retaliation_* {
+		replace `var' = 1 if `var' > 0 // some marked how many times channel used; just want whether it was
+	}
 
 =============================================================================================
 	ren unclear unclear_edu
