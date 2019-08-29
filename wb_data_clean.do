@@ -58,16 +58,37 @@ use master_dataset_bk, clear
 	expand 2 if caption == "US ex rel Mattiace, Dianne; Cortese, Victoria v Greenberg, Melo & Dennis et al", gen(exp)
 		replace wb_full_name = "Cortese, Victoria" if exp == 1
 		drop exp
+	expand 2 if caption == "US States of California et al ex rel Doe, John; Roe, Jane ///
+							v Par Pharmaceutical Companies Inc et al", gen(exp)
+		replace wb_full_name = "Doe, Jane" if exp == 1
+		drop exp 
+	expand 2 if caption == "US States of Florida et al ex rel Heinzen, Joel MD et al v Health Mgt ///
+							Associates Inc et al", gen(exp)
+		replace wb_full_name == "Bingham, Thomas" if exp == 1
+		drop exp 
+	expand 2 if caption == "US; State of Texas ex rel Foerster, Lisa et al v Molina Healthcare Inc et al" ///
+						   & wb_full_name == "Munoz, Tamara", gen(exp)
+		replace wb_full_name == "Reyna, Cathetine" if exp == 1
+		drop exp 
+		
+
 
 *(b) Drop nonsensical WBs (usually a combination of one WB's first name and another's last name)
 	drop if wb_full_name == "Elaine; Boone" & ///
 		caption == "US ex rel Bennett, Elaine; Boone, Donald P v Boston Scientific Corp F/K/A Guidant Corp"
 	drop if wb_full_name == "Rockhill Pain Specialists, P.A." & ///
 		caption == "US ex rel Hancock, Dan L et al v St Joseph Medical Center; SJ Pain Associates Inc et al"
+	drop if wb_full_name == "Leflore, Stephan" & ///
+		caption == "US States of California, Delaware et al ex rel LeFlore, Stephani v CVS Caremark Corp"
+	drop if wb_full
 
 *(c) Fix incorrect names and captions so the corrected excel files can be merged in on caption and wb_full_name
 	replace caption = "US ex rel Dilback, Harold v General Electric Co" if case_id == 351 & wb_full_name == "Lefan, Dennis"
-		replace wb_full_name = "Dilback, Harold" if caption == "US ex rel Dilback, Harold v General Electric Co"
+	replace wb_full_name = "Dilback, Harold" if caption == "US ex rel Dilback, Harold v General Electric Co"
+	replace wb_full_name = "Liter, Robert A." ///
+		if caption == "US; States of Arkansas; California; Connecticut; Delaware et al ex rel Liter, ///
+		Robert A v Abbott Labs"
+	replace wb
 
 *(d) Fix observations where WB worked for more than one company
 	replace internal = 0 if wb_full_name == Mateski, Steven" & conm == "NORTHROP GRUMMAN CORP" & ///
