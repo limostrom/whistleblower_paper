@@ -36,26 +36,33 @@ use master_dataset_bk, clear
 =============================================================================================
 *									First fix data errors
 *(a) Add missing WBs
-	expand 2 if caption == "US ex rel Barnes, Tony; Borggreen, Raymond; Riche, Roger v Akal Security Inc", gen(exp)
+	expand 2 if caption == "US ex rel Barnes, Tony; Borggreen, Raymond; Riche, Roger v Akal Security Inc" & ///
+				wb_full_name == "Barnes, Tony", gen(exp)
 		replace wb_full_name = "Borggreen, Raymond" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Barnes, Tony; Borggreen, Raymond; Riche, Roger v Akal Security Inc", gen(exp)
+	expand 2 if caption == "US ex rel Barnes, Tony; Borggreen, Raymond; Riche, Roger v Akal Security Inc" & ///
+				wb_full_name == "Barnes, Tony", gen(exp)
 		replace wb_full_name = "Richie, Roger" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Batiste, Than v Rehabilitation Services of Baton Rouge LLC et al", gen(exp)
+	expand 2 if caption == "US ex rel Batiste, Than v Rehabilitation Services of Baton Rouge LLC et al" & ///
+				wb_full_name == "Vincent, Terryl", gen(exp)
 		replace wb_full_name = "Batiste, Than" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Bintzler, Doug; Jordan, Michael et al  v Board of Trustees O/T University of Cincinnati", gen(exp)
+	expand 2 if caption == "US ex rel Bintzler, Doug; Jordan, Michael et al  v Board of Trustees O/T University of Cincinnati" & ///
+				wb_full_name == "Jordan, Michael", gen(exp)
 		replace wb_full_name = "Song, Yonggen" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Brackett, Carl v Heart Center of East Alabama", gen(exp)
+	expand 2 if caption == "US ex rel Brackett, Carl v Heart Center of East Alabama" & ///
+				wb_full_name == "Brackett, Carl", gen(exp)
 		replace wb_full_name = "Martin, Dana" if exp == 1
 		replace job_title_at_fraud_firm = "" if exp == 1 // have to manually replace because it's empty; won't merge update
 		drop exp
-	expand 2 if caption == "US ex rel Freel, Hugh E; Lucie, Eric R v Unidyne Corp", gen(exp)
+	expand 2 if caption == "US ex rel Freel, Hugh E; Lucie, Eric R v Unidyne Corp" & ///
+				wb_full_name == "Freel, Hugh E.", gen(exp)
 		replace wb_full_name = "Lucie, Eric" if exp == 1
 		drop exp
-	expand 2 if caption == "US ex rel Mattiace, Dianne; Cortese, Victoria v Greenberg, Melo & Dennis et al", gen(exp)
+	expand 2 if caption == "US ex rel Mattiace, Dianne; Cortese, Victoria v Greenberg, Melo & Dennis et al" & ///
+				wb_full_name == "Mattiace, Dianne", gen(exp)
 		replace wb_full_name = "Cortese, Victoria" if exp == 1
 		drop exp
 	expand 2 if caption == "US States of California et al ex rel Doe, John; Roe, Jane ///
@@ -99,8 +106,14 @@ use master_dataset_bk, clear
     	replace wb_full_name = "Pate, Michelle M." if exp == 1
     	replace wb_full_name = "Taylor, Theresa" if exp == 2
     	drop exp
+	expand 2 if caption == "US ex rel Longville, Patricia; McCormick, Moses v Cnty of Summit; Cnty of Summit Bd of Mental et al" & ///
+				wb_full_name == "Mccormick, Moses", gen(exp)
+		replace wb_full_name == "Longville, Patricia" if exp == 1
+		drop exp
 
-*(b) Drop nonsensical WBs (usually a combination of one WB's first name and another's last name)
+
+*(b) Drop observations with missing case documents or nonsensical WBs 
+*		(usually a combination of one WB's first name and another's last name)
 	drop if wb_full_name == "Elaine; Boone" & ///
 		caption == "US ex rel Bennett, Elaine; Boone, Donald P v Boston Scientific Corp F/K/A Guidant Corp"
 	drop if wb_full_name == "Rockhill Pain Specialists, P.A." & ///
@@ -112,6 +125,9 @@ use master_dataset_bk, clear
 	drop if wb_full_name == "Steele, Barbara" & ///
 		caption == "US State of Illinois ex rel Upton, Gloria et al v Family Health Network Inc; Bradley, Philip et al"
 	drop if wb_full_name == ""
+	drop if wb_full_name == "Thompson, Craig" & ///
+		caption == "US ex rel Thompson, Craig MD v Lifepointhospitals Inc; Aswell, Charles Dr"
+
 
 *(c) Fix incorrect names and captions so the corrected excel files can be merged in on caption and wb_full_name
 	
@@ -145,9 +161,18 @@ use master_dataset_bk, clear
 *(d) Fix observations where WB worked for more than one company
 	replace internal = 0 if wb_full_name == Mateski, Steven" & conm == "NORTHROP GRUMMAN CORP" & ///
 		caption == "US ex rel Mateski, Steven v Raytheon Co; Northrop Grumman Corp"
+	replace internal = 0 if wb_full_name == "Masters, Thomas R." & conm == "METROPOLITN MTG & SEC  -CL A" & ///
+		caption == "US ex rel Masters, Thomas R v Sandifur, Cantwell Paul Jr; Metropolitan Mortgage & Securities Co Inc"
+	replace job_title_at_fraud_firm = "" if wb_full_name == "Masters, Thomas R." & conm == "METROPOLITN MTG & SEC  -CL A" & ///
+		caption == "US ex rel Masters, Thomas R v Sandifur, Cantwell Paul Jr; Metropolitan Mortgage & Securities Co Inc"
 
 *(e) Merge with update replace options to correct all other variables (reported internaly, response, retaliation, etc.)
 
+
+	foreach var of varlist auditor billing colleague direct_supervisor gov hotline hr ///
+							legalcompliance relevantdirector topmanager response_* retaliation_* {
+		replace `var' = 1 if `var' > 0 // some marked how many times channel used; just want whether it was
+	}
 
 =============================================================================================
 	ren unclear unclear_edu
