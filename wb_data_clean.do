@@ -24,11 +24,11 @@ Opens master_dataset_bk, merges in other necessary variables from other datasets
 		
 */
 
-include "Documents/GitHub/whistleblower_paper/assign_global_filepaths.do"
+*include "Documents/GitHub/whistleblower_paper/assign_global_filepaths.do"
 *If on Dolly's computer
-include "Desktop/Github/whistleblower_paper/assign_global_filepaths.do"
+include "Desktop/whistleblower_paper/assign_global_filepaths.do"
 
-use master_dataset_bk, clear
+use "$dropbox/master_dataset_bk.dta", clear
 	drop if case_id == . & caption == "" & wb_full_name == ""
 	
 	merge 1:m caption wb_full_name using "master_dataset_v3_gvkey.dta", nogen ///
@@ -73,40 +73,26 @@ use master_dataset_bk, clear
 		drop exp 
 	expand 2 if caption == "US States of Florida et al ex rel Heinzen, Joel MD et al v Health Mgt ///
 							Associates Inc et al", gen(exp)
-		replace wb_full_name == "Bingham, Thomas" if exp == 1
+		replace wb_full_name = "Bingham, Thomas" if exp == 1
 		drop exp 
 	expand 2 if caption == "US State of Texas ex rel Foerster, Lisa et al v Molina Healthcare Inc et al" ///
 						   & wb_full_name == "Munoz, Tamara", gen(exp)
-		replace wb_full_name == "Reyna, Cathetine" if exp == 1
+		replace wb_full_name = "Reyna, Cathetine" if exp == 1
 		drop exp 
 	expand 2 if caption == "US States of Florida et al ex rel Heinzen, Joel MD et al v Health Mgt Associates Inc 						et al ", gen(exp)
-		replace wb_full_name == "Rhead, M.D. Christopher" if exp == 1
+		replace wb_full_name = "Rhead, M.D. Christopher" if exp == 1
 		drop exp
-    expand 2 if caption == "US ex rel Airan, Ramesh; Gonzalez, Lazaro; State of FL v University of Miami Inc", gen(exp)
-    	replace wb_full_name = "Airan, Ramesh" if exp == 1
-    	drop exp
-    expand 2 if caption == "US ex rel Barnett, Cathy; Bates, Pamela; Gross, Lesley et al v Hospice O/T Bluegrass Inc" & wb_full_name == "Barnett, Cathy", gen(exp)
-    	replace wb_full_name = "Gross, Lesley" if exp == 1
-    	drop exp
-    expand 2 if caption == "US ex rel Battiata, Andrew MD; Raybon, Jenny v Puchalski, Robert MD et al", gen(exp)
-    	replace wb_full_name = "Raybon, Jenny" if exp == 1
-    	drop exp
-    expand 2 if caption == "US ex rel Bintzler, Doug; Jordan, Michael et al  v Board of Trustees O/T University of Cincinnati" & wb_full_name == "Bintzler, Doug", gen(exp)
-    	replace wb_full_name = "Jordan, Michael" if exp == 1
-    	drop exp
-    expand 2 if caption == "US ex rel Bodemann, Brenda & Harry; State of Tennessee v Blount Memorial Hospital et al", gen(exp)
-    	replace wb_full_name = "Bodemann, Harry" if exp == 1
-    	drop exp
-    expand 2 if caption == "US ex rel Brummell, Kelly Stephens; Ames, Judi v Valir Health Mgt Solutions Inc et al", gen(exp)
-    	replace wb_full_name = "Ames, Judi" if exp == 1
+    expand 2 if caption == "US ex rel Cornett, Jack; Koral, Lawrence F v Crow Creek Tribal School; Duwayne et al", gen(exp)
+    	replace wb_full_name = "Koral, Lawrence F." if exp == 1
     	drop exp
     expand 2 if caption == "US ex rel Fields, Faye; Craft, Ann v Sherman Health Systems; Health Visions Inc etal", gen(exp)
     	replace wb_full_name = "Craft, Ann" if exp == 1
     	drop exp
-
-    expand 3 if caption == "US ex rel Kaczmarczyk, Darryl L; Pate, Michelle M et al v SCCI Health Service Corp D/B/A SCCI et al", gen(exp)
+    expand 2 if caption == "US ex rel Kaczmarczyk, Darryl L; Pate, Michelle M et al v SCCI Health Service Corp D/B/A SCCI et al", gen(exp)
     	replace wb_full_name = "Pate, Michelle M." if exp == 1
-    	replace wb_full_name = "Taylor, Theresa" if exp == 2
+    	drop exp
+    expand 2 if caption == "US ex rel Kaczmarczyk, Darryl L; Pate, Michelle M et al v SCCI Health Service Corp D/B/A SCCI et al" & wb_full_name == "Pate, Michelle M.", gen(exp)
+    	replace wb_full_name = "Taylor, Theresa" if exp == 1
     	drop exp
 	expand 2 if caption == "US ex rel Longville, Patricia; McCormick, Moses v Cnty of Summit; Cnty of Summit Bd of Mental et al" & ///
 				wb_full_name == "Mccormick, Moses", gen(exp)
@@ -126,22 +112,27 @@ use master_dataset_bk, clear
 		caption == "US State of Illinois ex rel Upton, Gloria et al v Family Health Network Inc; Bradley, Philip et al" 
 	drop if wb_full_name == "Steele, Barbara" & ///
 		caption == "US State of Illinois ex rel Upton, Gloria et al v Family Health Network Inc; Bradley, Philip et al"
-	drop if wb_full_name == ""
+	drop if wb_full_name == "Tricia Nowak" & caption == "US ex rel Dodd, Enda v Medtronic Inc"
 	drop if wb_full_name == "Thompson, Craig" & ///
 		caption == "US ex rel Thompson, Craig MD v Lifepointhospitals Inc; Aswell, Charles Dr"
 
 
 *(c) Fix incorrect names and captions so the corrected excel files can be merged in on caption and wb_full_name
 	
+	*Caption names
 	replace caption = "US ex rel Dilback, Harold v General Electric Co" if case_id == 351 & wb_full_name == "Lefan, Dennis"
+	replace caption = "US ex rel Richardson, Daniel C v Bristol-Myers Squibb" if case_id == 603 & wb_full_name == "Richardson, Daniel C."
+	replace caption = "US ex rel Rose, Sean; Aquino, Mary et al v Stephens Institute" if case_id == 5047
+
+	*WB names
 	replace wb_full_name = "Dilback, Harold" if caption == "US ex rel Dilback, Harold v General Electric Co"
 	replace wb_full_name = "Liter, Robert A." ///
 		if caption == "US; States of Arkansas; California; Connecticut; Delaware et al ex rel Liter, ///
 		Robert A v Abbott Labs"
-	*replace wb_full_name = "Justice, Alicia" if caption == "" -- problem 
+	replace wb_full_name = "Justice, Alicia" if caption == "US; States of California; Delaware et al ex rel Justice, Alicia et al v Salix Pharmaceuticals Inc" & wb_full_name == "Alicia Justice" 
 	replace wb_full_name = "Nunnally, James Dent" if caption == "US Nunnally, Dent T v West Calcasieu Cameron Hospital"
 	replace wb_full_name = "DeFatta, Mark" if caption == "US DeFatta, Mark v United Parcel Service Inc; United Parcel Service Inc Ohio et al"
-	*replave wb_full_name = "Stafford-Payne, Kimberly" if caption == "" -- problem 
+	replave wb_full_name = "Stafford-Payne, Kimberly" if caption == "US; Commonwealth of Virginia ex rel Johnson, Megan L et al v Universal Health Services Inc et al" & wb_full_name == "Kimberly Stafford-Payne, Ma"
 	replace wb_full_name = "Woodward, Debbie" if caption == "US ex rel Woodward, Debbie v Danville Services of Utah LLC"
 	replace wb_full_name = "Wilson, Geoffrey K." if caption == "US ex rel Willson, Geoffrey K v Alcatel-Lucent; Alcatel-Lucent USA Inc et al"
 	replace wb_full_name = "Tamanaha, Alvin" if caption == "US ex rel Tamanaha, Alvin v Furukawa Electric Co Ltd; Furukawa America Inc; Yu, Timothy et al"
@@ -152,11 +143,14 @@ use master_dataset_bk, clear
 	replace wb_full_name = "Lewis, London" if caption == "US ex rel Paradies, Debora; Lewis, London; Manley, Roberta v AseraCare Inc et al" & job_title_at_fraud_firm == "Registered Nurse"
 	replace wb_full_name = "Kennedy, Stephanie" if caption == "US ex rel Friddle, Comfort; Kennedy, Stephanie v Taylor, Bean & Whitaker Mortgage Corp et al" & job_title_at_fraud_firm == "Vice President of Operations"
 	replace wb_full_name = "Friddle,Comfort" if caption == "US ex rel Friddle, Comfort; Kennedy, Stephanie v Taylor, Bean & Whitaker Mortgage Corp et al" & job_title_at_fraud_firm == "Loan Processor"
-	*replace wb_full_name = "Bruno, Karen" if  -- problem 
+	replace wb_full_name = "Landau, Barbara Jo" if caption == "US ex rel Roberts, Joyce; Nyetrae, Shirley; Landau, Barbara Jo; Buie, James v KRG Capital LLC et al" & wb_full_name == "Barbara Jo, Buie"
+	replace wb_full_name = "Bruno, Karen" if caption == "US ex rel Bergin, Joanne; Bruno, Karen; Lee, Kenneth J v Ocean Health Initiatives Inc" & wb_full_name == "Karen Bruno"
 	replace wb_full_name = "Cassaday, Frank M." if caption == "US ex rel Cassaday, Frank M v KBR Inc; Kellogg Brown & Root Services Inc et al" & case_id == 4277
 	replace wb_full_name = "Coss, Beverly" if caption == "US ex rel Coss, Beverly v Northrop Grumman Inc" & case_id = 661
 	replace wb_full_name = "Davis, Kathleen Kurtz" if caption == "US ex rel Davis, Kathleen Kurtz v Cape Cod Hosp" & case_id == 4384
 	replace wb_full_name = "Gemtilello, Larry M. M.D." if caption == "US ex rel Gentilello, Larry M MD v University of Texas Southwestern Health Systems et al" & case_id == 4337
+	replace wb_full_name = "Sun, Linnette" if caption == "US; States of Arkansas et al ex rel Sun, Linnette et al v Baxter Hemoglobin Therapeutics et al" & wb_full_name == "Linnette, Sun"
+	replace wb_full_name = "Lammers, Bonnie" if wb_full_name == "Lamers, Bonnie" 
 
 
 
@@ -200,8 +194,6 @@ merge m:1 caption using "total_settlements_from_qtrack.dta", nogen keepus(total_
 	replace settlement = settlement/1000000
 		lab var settlement "Settlement ($ Millions)"
 
-
-replace wb_full_name = "Lammers, Bonnie" if wb_full_name == "Lamers, Bonnie" 
 
 drop if internal == 0 & wb_raised_issue_internally == "YES"
 append using "$dropbox/raised_yes_employee_no.dta"
