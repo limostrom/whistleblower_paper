@@ -25,6 +25,8 @@ Opens master_dataset_bk, merges in other necessary variables from other datasets
 */
 
 include "Documents/GitHub/whistleblower_paper/assign_global_filepaths.do"
+*If on Dolly's computer
+include "Desktop/Github/whistleblower_paper/assign_global_filepaths.do"
 
 use master_dataset_bk, clear
 	drop if case_id == . & caption == "" & wb_full_name == ""
