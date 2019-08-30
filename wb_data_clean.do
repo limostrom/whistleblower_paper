@@ -24,9 +24,14 @@ Opens master_dataset_bk, merges in other necessary variables from other datasets
 		
 */
 
-*include "Documents/GitHub/whistleblower_paper/assign_global_filepaths.do"
-*If on Dolly's computer
-include "Desktop/whistleblower_paper/assign_global_filepaths.do"
+
+local wd: pwd // saves local of current working directory, C:\Users\[]
+if substr("`wd'", 10, 2) == "lm" { // if on Lauren's computer
+		include "C:/Users/lmostrom/Documents/GitHub/whistleblower_paper/assign_global_filepaths.do"
+}
+if substr("`wd'", 10, 2) == "dy" { // if on Dolly's computer
+	include "C:/Users/dyu/Desktop/whistleblower_paper/assign_global_filepaths.do"
+}
 
 use "$dropbox/master_dataset_bk.dta", clear
 	drop if case_id == . & caption == "" & wb_full_name == ""
@@ -164,6 +169,13 @@ use "$dropbox/master_dataset_bk.dta", clear
 
 *(e) Merge with update replace options to correct all other variables (reported internaly, response, retaliation, etc.)
 
+	* (first replace empty job titles of external people because since they're empty they won't merge update)
+	replace job_title_at_fraud_firm = "" if wb_full_name == "Olenick, Bennet Yale" & ///
+		caption == "US ex rel Olenick, Bennet Yale v Catholic Healthcare West; Sequoia Hosp; Certus Corp et al"
+	replace job_title_at_fraud_firm = "" if wb_full_name == "Putnam, Jennifer" & ///
+		caption == "US ex rel Putnam, Jennifer v Eastern Idaho Regional Medical Center; Madison Memorial Hosp et al"
+
+	merge m:1
 
 	foreach var of varlist auditor billing colleague direct_supervisor gov hotline hr ///
 							legalcompliance relevantdirector topmanager response_* retaliation_* {
