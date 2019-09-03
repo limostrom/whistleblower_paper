@@ -859,7 +859,7 @@ preserve // -- now do left side of table, "All Firms"
 	merge 1:1 response using `public4A1', assert(3)
 	gsort -allegationsA
 		br
-		pause
+		*pause
 		drop if allegationsA == .
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(response)
 restore
@@ -906,7 +906,7 @@ preserve // -- now do left side of table, "All Firms"
 	merge 1:1 retaliation using `public4A2', assert(3)
 	gsort -allegationsA
 		br
-		pause
+		*pause
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(retaliation)
 restore
 
@@ -1009,7 +1009,7 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 		merge 1:1 response using `public4`panel'1U', assert(3) nogen
 		gsort -allegationsL -allegationsM -allegationsU
 			br
-			pause
+			*pause
 		mkmat obsL allegationsL settlementL ///
 				obsM allegationsM settlementM ///
 				obsU allegationsU settlementU, mat(all) rownames(response)
@@ -1076,7 +1076,7 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 		merge 1:1 retaliation using `public4`panel'2U', assert(3) nogen
 		gsort -allegationsL -allegationsM -allegationsU
 			br
-			pause
+			*pause
 		mkmat obsL allegationsL settlementL ///
 				obsM allegationsM settlementM ///
 				obsU allegationsU settlementU, mat(all) rownames(retaliation)
@@ -1136,13 +1136,28 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 } // end panel loop
 } // end Panels B & C ----------------------------------------------------------
 
-* ================================== TABLE 4 ================================== *
+* ================================== TABLE 5 ================================== *
 if `run_5' == 1 | `run_all' == 1 {
 *------------------------------------
 include "$repo/FamaFrench12.do"
 
-tab famafrench12
+tab famafrench12, matcell(m5c2) matrow(m5c1)
+mat m5 = (m5c1, m5c2)
+	mat list m5
 
+preserve
+drop _all
+svmat2 m5, names(industry allegations)
+	assert industry != 8
+	set obs 12
+	replace industry = 8 if industry == .
+	replace allegations = 0 if allegations == .
+	sort industry
 
+	local leftcol "industry" // need to set these locals for add_total_row_and_pct_col_to_table.do
+	local tab_cols "allegations" // the columns you need to calculate "% of total" for
+	include "$repo/add_total_row_and_pct_col_to_table.do"
 
+export excel "$dropbox/draft_tables.xls", sheet("5") sheetrep first(var)
+restore
 }
