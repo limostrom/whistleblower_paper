@@ -54,10 +54,22 @@ import delimited "$dropbox/spreadsheets_for_merge/employee_wbs_two_firms_combine
 *-------------------------------------------------------------------------------------------
 use "$dropbox/master_dataset_bk.dta", clear
 	drop if case_id == . & caption == "" & wb_full_name == ""
-	
+	gen fyear = year(received_date)
+
 	merge 1:m caption wb_full_name using "$dropbox/master_dataset_v3_gvkey.dta", nogen ///
 		keep(1 3) keepus(match_score gvkey conm)
-	replace public_firm = 1 if public_firm == . & gvkey != .
+	
+	* to merge m:1 with Compustat:
+		gen indfmt = "INDL" if gvkey != .
+		gen datafmt = "STD" if gvkey != .
+		gen popsrc = "D" if gvkey != .
+		gen consol = "C" if gvkey != .
+
+	merge m:1 gvkey fyear indfmt datafmt popsrc consol using "Dropbox/Compustat_none_missing_fyear.dta", nogen keep(1 3) keepus(sic)
+		destring sic, replace
+
+	drop public_firm
+	gen public_firm = (gvkey != .)
 
 	ren unclear unclear_edu
 	ren Unclear unclear_outcome

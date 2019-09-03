@@ -19,8 +19,9 @@ local run_1D 0
 local run_2 0
 local run_3A 0
 local run_3BC 0
-local run_4A 1
-local run_4BC 1
+local run_4A 0
+local run_4BC 0
+local run_5 1
 local run_all 0
 *---------------------------
 
@@ -125,10 +126,9 @@ restore
 * Panel C
 if `run_1C' == 1 | `run_all' == 1 {
 *------------------------------------
-gen year = year(received_date)
 preserve
 	keep if internal == 1 & gvkey != .
-	tab year if tag_case_id, matcell(C) matrow(rC)
+	tab fyear if tag_case_id, matcell(C) matrow(rC)
 	mat C = (rC, C)
 	drop _all
 	svmat2 C, names(year cases)
@@ -1135,3 +1135,14 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 	restore
 } // end panel loop
 } // end Panels B & C ----------------------------------------------------------
+
+* ================================== TABLE 4 ================================== *
+if `run_5' == 1 | `run_all' == 1 {
+*------------------------------------
+include "$repo/FamaFrench12.do"
+
+tab famafrench12
+
+
+
+}
