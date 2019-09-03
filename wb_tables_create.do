@@ -9,7 +9,7 @@ See /whistleblower paper/drafts/Manuscript draft_v4.docx for instructions
 set more off
 clear all
 set scheme s1color, perm
-pause on
+pause off
 
 *---------------------------
 local run_1A 0
@@ -18,9 +18,9 @@ local run_1C 0
 local run_1D 0
 local run_2 0
 local run_3A 0
-local run_3BC 1
-local run_4A 0
-local run_4BC 0
+local run_3BC 0
+local run_4A 1
+local run_4BC 1
 local run_all 0
 *---------------------------
 
@@ -28,7 +28,7 @@ cap cd "C:\Users\lmostrom\Dropbox\Violation paper\whistleblower paper\"
 
 
 *-------------------------------------------------------------------------------
-include wb_data_clean.do
+include "$repo/wb_data_clean.do"
 	egen wb_id = group(wb_full_name)
 	egen tag_case_id = tag(case_id)
 	egen tag_gvkey = tag(gvkey)
@@ -39,7 +39,7 @@ include wb_data_clean.do
 if `run_1A' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve // -- Load in full QTRACK FOIA Request dataset
-	import excel "QTRACK_FOIA_Request_060313.xls", first case(lower) clear
+	import excel "$dropbox/QTRACK_FOIA_Request_060313.xls", first case(lower) clear
 	keep caption relator_name
 	egen tag_case = tag(caption)
 	egen tag_rel = tag(relator_name)
@@ -69,7 +69,7 @@ mat A = (A \ `N_case_id', `N_gvkey', `N_wb_id')
 	
 local i = 5 // going to refer to row 5
 foreach if_st in "if inlist(internal, 0, .)" /* less external whistleblowers */ ///
-				 "if internal == 1 & inlist(public_firm, 0, .)" /* less private firms */ {
+				 "if internal == 1 & gvkey == ." /* less private firms */ {
 	foreach col in case_id gvkey wb_id { 
 		tab tag_`col' `if_st', subpop(tag_`col')
 		local N_`col' = `r(N)' // number of unique cases, firms, or whistleblowers
@@ -95,7 +95,7 @@ preserve
 			replace `var' = "(" + `var' + ")" if _n == 2 | _n == 4 | _n == 6
 		}
 		replace unique_firms = "" if inlist(unique_firms, ".", "(.)")
-	export excel "draft_tables.xls", sheet("1.A") sheetrep first(var)
+	export excel "$dropbox/draft_tables.xls", sheet("1.A") sheetrep first(var)
 restore
 } // end Panel A ---------------------------------------------------------------
 
@@ -105,19 +105,19 @@ if `run_1B' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve
 	keep if gvkey != .
-	codebook wb_id // 556 unique whistleblowers
+	codebook wb_id 
 	collapse (count) cases = case_id (mean) avg_settlement = settlement ///
 			 (sum) tot_settlements = settlement, by(wb_type) fast
 	gsort -cases
 		local leftcol "wb_type" // need to set these locals for add_total_row_and_pct_col_to_table.do
 		local tab_cols "cases tot_settlements" // the columns you need to calculate "% of total" for
-		include add_total_row_and_pct_col_to_table.do
+		include "$repo/add_total_row_and_pct_col_to_table.do"
 		tostring avg_settlement tot_settlements, replace force format(%9.1f)
 		replace avg_settlement = "$" + avg_settlement
 			replace avg_settlement = "" if avg_settlement == "$."
 		replace tot_settlements = "$" + tot_settlements
 		order wb_type cases cases_pct_str avg_settlement tot_settlements tot_settlements_pct_str
-	export excel "draft_tables.xls", sheet("1.B") sheetrep first(var)
+	export excel "$dropbox/draft_tables.xls", sheet("1.B") sheetrep first(var)
 restore
 } // end Panel B ---------------------------------------------------------------
 
@@ -134,8 +134,8 @@ preserve
 	svmat2 C, names(year cases)
 		local leftcol "year"  // need to set these locals for add_total_row_and_pct_col_to_table.do
 		local tab_cols "cases" // the column you need to calculate "% of total" for
-		include add_total_row_and_pct_col_to_table.do
-	export excel "draft_tables.xls", sheet("1.C") sheetrep first(var)
+		include "$repo/add_total_row_and_pct_col_to_table.do"
+	export excel "$dropbox/draft_tables.xls", sheet("1.C") sheetrep first(var)
 restore
 } // end Panel C ---------------------------------------------------------------
 
@@ -145,8 +145,8 @@ if `run_1D' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve
 keep if internal == 1 & gvkey != .
-merge m:1 caption using "gov_agencies_from_qtrack.dta", nogen keep(1 3) keepus(primary_agency)
-include replace_agency_names.do
+merge m:1 caption using "$dropbox/gov_agencies_from_qtrack.dta", nogen keep(1 3) keepus(primary_agency)
+include "$repo/replace_agency_names.do"
 collapse (sum) cases = tag_case_id /*unique_firms = tag_gvkey unique_wbs = tag_wb_id*/ ///
 	, by(primary_agency) fast
 g byte nonmiss = primary_agency != "Unknown"
@@ -155,13 +155,13 @@ gsort -nonmiss -cases
 	drop nonmiss
 	local leftcol "primary_agency" // need to set these locals for add_total_row_and_pct_col_to_table.do
 	local tab_cols "cases" // the column you need to calculate "% of total" for
-	include add_total_row_and_pct_col_to_table.do
-export excel "draft_tables.xls", sheet("1.D") sheetrep first(var)
+	include "$repo/add_total_row_and_pct_col_to_table.do"
+export excel "$dropbox/draft_tables.xls", sheet("1.D") sheetrep first(var)
 restore
 } // end Panel D ---------------------------------------------------------------
 
 keep if internal == 1
-include job_titles_to_functions.do
+include "$repo/job_titles_to_functions.do"
 	gen other_function = inlist(wb_function, "Other Employee", "Other Manager", "Unspecified")
 	bys wb_id (received_date): gen repeat_wb_all = _N > 1
 	bys wb_id (received_date): gen repeat_wb_not1st = _n > 1
@@ -264,6 +264,8 @@ preserve // -- now do left side of table, "All Firms"
 	ren allegations allegationsA
 	ren settlement settlementA
 	merge 1:1 mgmt_class using `public2C', assert(3)
+		*br
+		*pause
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(mgmt_class)
 restore
 
@@ -283,7 +285,7 @@ mat list tab2C
 preserve // -- first do right side of table, "Public Firms"
 	keep if gvkey != .
 	collapse (count) allegations = case_id (sum) settlement, by(wb_function other_function)
-		assert wb_function != ""
+		drop if wb_function == ""
 	ren allegations allegationsP
 	ren settlement settlementP
 	egen obsP = total(allegationsP)
@@ -292,16 +294,14 @@ preserve // -- first do right side of table, "Public Firms"
 restore
 preserve // now do the left side of the table, "All Firms"
 	collapse (count) allegations = case_id (sum) settlement, by(wb_function other_function)
-		assert wb_function != ""
-		*br
-		*pause // see what order the row names should go in
+		drop if wb_function == ""
 	merge 1:1 wb_function using `public2D', assert(1 3)
 	egen obsA = total(allegations)
 	ren allegations allegationsA
 	ren settlement settlementA
 	gsort other_function -allegationsA
-	*br
-	*pause // to know what order row names should go in
+		*br
+		*pause // to know what order row names should go in
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(wb_function)
 restore
 
@@ -315,13 +315,14 @@ restore
 mat tab2D = (all[1,1], ., .,all[1,4], ., ., 4 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 mat rownames tab2D = "Function" "Health_Professional" "Finance/Accounting" "Sales" ///
-				"Operations" "Quality_Assurance" "Administrator" "Marketing" ///
-				"Legal/Compliance" "Auditor" "Consultant" "IT" ///
-				"Other_Employee" "Other_Manager" "Unspecified"
+				"Operations" "Quality_Assurance" "Administrator" "Legal/Compliance" ///
+				 "Auditor" "Marketing" "Consultant" "HR" "IT" ///
+				"Other_Employee" "Other_Manager"
 mat list tab2D
 
 * --- Repeat Whistleblower --- *
 preserve
+	replace repeat_wb_all = 0 if  inlist(wb_full_name, "Doe, John", "Doe, Jane")
 	collapse (count) allegations = case_id (sum) settlement, by(repeat_wb_all)
 	egen obsA = total(allegations)
 	ren allegations allegationsA
@@ -329,6 +330,7 @@ preserve
 	mkmat obsA allegationsA settlementA, mat(all) rownames(repeat_wb_all)
 restore
 preserve // -- now do right side of table, "Public Firms"
+	replace repeat_wb_all = 0 if  inlist(wb_full_name, "Doe, John", "Doe, Jane")
 	keep if gvkey != .
 	collapse (count) allegations = case_id (sum) settlement, by(repeat_wb_all)
 	ren allegations allegationsP
@@ -380,7 +382,7 @@ preserve
 		replace `var' = "" if `var' == "."
 	}
 	drop obsP subtable
-	export excel "draft_tables.xls", sheet("2") sheetrep first(var)
+	export excel "$dropbox/draft_tables.xls", sheet("2") sheetrep first(var)
 restore
 } // end Table 2 ---------------------------------------------------------------	
 
@@ -416,18 +418,17 @@ mat list tab3A1 // just to view so it looks right
 
 * --- Internal Reporting Channel --- *
 egen non_audit_reports = rowtotal(billing colleague direct_supervisor hotline hr legalcompliance relevantdirector topmanager)
-gen int_auditor = auditor if auditor > 0 & wb_raised_issue_internally == "YES" ///
-	& non_audit_reports == 0
+replace int_auditor = auditor if auditor > 0 & wb_raised_issue_internally == "YES" ///
+	& non_audit_reports == 0 & int_auditor == .
 	/* Initially ambiguous internal/external audit cases: 2586, 674*/
 	replace int_auditor = auditor if wb_raised_issue_internally == "YES" ///
-		& non_audit_reports > 0 & inlist(case_id, 2586, 674)
+		& non_audit_reports > 0 & inlist(case_id, 2586, 674) & int_auditor
 	drop non_audit_reports
-gen ext_auditor = auditor if wb_raised_issue_internally == "NO"
+replace ext_auditor = auditor if wb_raised_issue_internally == "NO" & ext_auditor == .
 replace int_auditor = 0 if int_auditor == .
 replace ext_auditor = 0 if ext_auditor == .
 	/* Case file missing; can't check internal or external auditor */
 	drop if caption == "US ex rel Tompkins, Jimmy M v Adham, Abdullah N; Lamarre, Louise; Olusola, Benedict O et al"
-assert int_auditor + ext_auditor == auditor
 
 gen ext_to_courts = (ext_auditor == 0 & gov == 0)
 
@@ -466,6 +467,8 @@ preserve // -- now do left side of table, "All Firms"
 	ren stlmt_ settlementA
 	merge 1:1 channel using `public3A2', assert(3)
 	gsort -allegationsA
+		br
+		*pause
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(channel)
 restore
 
@@ -479,8 +482,8 @@ mat tab3A2 = (all[1,1], ., ., all[1,4], ., ., 2 \ /* put total non-missing obs o
 			`other_rows')
 mat list tab3A2
 mat rownames tab3A2 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
-				"Colleague" "Relevant_Director" "Legal_Compliance" "HR" "Hotline" ///
-				"Internal_Auditor" "Billing"
+				"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Billing" ///
+				"Hotline" "Internal_Auditor"
 
 * --- External Reporting Channel --- *
 preserve // -- first do right side of table, "Public Firms"
@@ -510,6 +513,8 @@ preserve // -- now do left side of table, "All Firms"
 	ren stlmt_ settlementA
 	merge 1:1 channel using `public3A3', assert(3)
 	gsort -allegationsA
+		br
+		*pause
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(channel)
 restore
 
@@ -557,7 +562,7 @@ preserve
 		replace `var' = "" if `var' == "."
 	}
 	drop obsP subtable
-	export excel "draft_tables.xls", sheet("3.A") sheetrep first(var)
+	export excel "$dropbox/draft_tables.xls", sheet("3.A") sheetrep first(var)
 restore
 } // end Panel A ---------------------------------------------------------------
 
@@ -565,9 +570,10 @@ restore
 * Panels B & C
 if `run_3BC' == 1 | `run_all' == 1 {
 foreach panel in "B" "C" {
-	if "`panel'" == "C" drop if gvkey == .
+
 * --- Male --- *
 	preserve // -- first do left side of table, "Internal"
+		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "YES"
 		collapse (count) allegations = case_id (sum) settlement, by(male)
 			drop if male == .
@@ -579,6 +585,7 @@ foreach panel in "B" "C" {
 		mkmat obsI allegationsI settlementI, mat(int) rownames(male)
 	restore
 	preserve // -- now do right side of table, "External"
+		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "NO"
 		collapse (count) allegations = case_id (sum) settlement, by(male)
 			drop if male == .
@@ -640,7 +647,7 @@ foreach panel in "B" "C" {
 		egen obsE = total(allegationsE)
 		sort wb_age_bin
 		br
-		pause
+		*pause
 		mkmat obsE allegationsE settlementE, mat(ext) // don't need row names because
 									// this matrix is being appended to the right of the all matrix
 	restore
@@ -657,6 +664,7 @@ foreach panel in "B" "C" {
 */
 * --- Management Rank --- *
 	preserve // -- first do right side of table, "External"
+		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "NO"
 		collapse (count) allegations = case_id (sum) settlement, by(mgmt_class)
 			drop if mgmt_class == ""
@@ -667,6 +675,7 @@ foreach panel in "B" "C" {
 		save `ext3`panel'3', replace
 	restore
 	preserve // -- now do left side of table, "Internal"
+		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "YES"
 		collapse (count) allegations = case_id (sum) settlement, by(mgmt_class)
 			drop if mgmt_class == ""
@@ -675,8 +684,8 @@ foreach panel in "B" "C" {
 		ren settlement settlementI
 		merge 1:1 mgmt_class using `ext3`panel'3', assert(1 3)
 		sort mgmt_class
-		*br
-		*pause // to know what order to put the row labels in
+			br
+			*pause // to know what order to put the row labels in
 		mkmat obsI allegationsI settlementI obsE allegationsE settlementE, mat(all) rownames(mgmt_class)
 	restore
 
@@ -694,9 +703,10 @@ foreach panel in "B" "C" {
 
 * --- Function --- *
 	preserve // -- first do right side of table, "External"
+		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "NO"
 		collapse (count) allegations = case_id (sum) settlement, by(wb_function other_function)
-			assert wb_function != ""
+			drop if wb_function == ""
 		ren allegations allegationsE
 		ren settlement settlementE
 		egen obsE = total(allegationsE)
@@ -704,16 +714,17 @@ foreach panel in "B" "C" {
 		save `ext3`panel'4', replace
 	restore
 	preserve // now do the left side of the table, "Internal"
+		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "YES"
 		collapse (count) allegations = case_id (sum) settlement, by(wb_function other_function)
-			assert wb_function != ""
+			drop if wb_function == ""
 		merge 1:1 wb_function using `ext3`panel'4', assert(1 3)
 		egen obsI = total(allegations)
 		ren allegations allegationsI
 		ren settlement settlementI
 		gsort other_function -allegationsI -allegationsE
-		*br
-		*pause // to know what order row names should go in
+			br
+			*pause // to know what order row names should go in
 		mkmat obsI allegationsI settlementI obsE allegationsE settlementE, mat(all) rownames(wb_function)
 	restore
 
@@ -728,21 +739,23 @@ foreach panel in "B" "C" {
 				`other_rows')
 	if "`panel'" == "B" {
 		mat rownames tab3`panel'4 = "Function" "Health_Professional" "Finance/Accounting" "Sales" ///
-					"Operations" "Quality_Assurance" "Administrator" "Auditor" ///
-					"Legal/Compliance" "Consultant" "Marketing" "HR" ///
-					"Other_Employee" "Other_Manager" "Unspecified"
+					"Quality_Assurance" "Operations" "Legal/Compliance" "Auditor" ///
+					"Administrator" "Marketing" "Consultant" "HR" "IT" ///
+					"Other_Employee" "Other_Manager"
 	}
 	if "`panel'" == "C" {
 		mat rownames tab3`panel'4 = "Function" "Sales" "Health_Professional" "Finance/Accounting" ///
-					"Quality_Assurance" "Auditor" "Operations" "Administrator" ///
-					"Consultant" "Legal/Compliance" "Marketing" "HR" ///
-					"Other_Employee" "Other_Manager" "Unspecified"
+					"Quality_Assurance" "Operations" "Auditor" "Legal/Compliance" ///
+					"Consultant" "Administrator" "Marketing" "HR" "IT" ///
+					"Other_Employee" "Other_Manager"
 	}
 	mat list tab3`panel'4
 
 * --- Repeat Whistleblower --- *
 	preserve // first do left side of table, "Internal"
+		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "YES"
+		replace repeat_wb_all = 0 if inlist(wb_full_name, "Doe, John", "Doe, Jane")
 		collapse (count) allegations = case_id (sum) settlement, by(repeat_wb_all)
 		egen obsI = total(allegations)
 		ren allegations allegationsI
@@ -750,14 +763,16 @@ foreach panel in "B" "C" {
 		mkmat obsI allegationsI settlementI, mat(int) rownames(repeat_wb_all)
 	restore
 	preserve // -- now do right side of table, "External"
+		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "NO"
+		replace repeat_wb_all = 0 if inlist(wb_full_name, "Doe, John", "Doe, Jane")
 		collapse (count) allegations = case_id (sum) settlement, by(repeat_wb_all)
 		ren allegations allegationsE
 		ren settlement settlementE
 		egen obsE = total(allegationsE)
 		set obs 2 // just in case there are no repeat WBs
-		*br
-		*pause
+			*br
+			*pause
 		mkmat obsE allegationsE settlementE, mat(ext)
 	restore
 
@@ -804,7 +819,7 @@ foreach panel in "B" "C" {
 			replace `var' = "" if `var' == "."
 		}
 		drop obsE subtable
-		export excel "draft_tables.xls", sheet("3.`panel'") sheetrep first(var)
+		export excel "$dropbox/draft_tables.xls", sheet("3.`panel'") sheetrep first(var)
 	restore
 
 } // loop through panels B & C
@@ -843,6 +858,9 @@ preserve // -- now do left side of table, "All Firms"
 	ren stlmt_ settlementA
 	merge 1:1 response using `public4A1', assert(3)
 	gsort -allegationsA
+		br
+		pause
+		drop if allegationsA == .
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(response)
 restore
 
@@ -855,8 +873,8 @@ restore
 mat tab4A1 = (all[1,1], ., ., all[1,4], ., ., 1 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 mat list tab4A1
-mat rownames tab4A1 = "Response_to_Allegation" "Ignored" "Internal_Investigation" ///
-				"Suspension" "Dismissal/Retaliation" "Unknown"
+mat rownames tab4A1 = "Response_to_Allegation" "Ignored" "Unknown" "Cover_Up" "Internal_Investigation" ///
+				"Dismissal/Retaliation" "Suspension"
 
 * --- Firm Retaliation Against Whistleblower --- *
 drop stlmt*
@@ -887,6 +905,8 @@ preserve // -- now do left side of table, "All Firms"
 	ren stlmt_ settlementA
 	merge 1:1 retaliation using `public4A2', assert(3)
 	gsort -allegationsA
+		br
+		pause
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(retaliation)
 restore
 
@@ -899,8 +919,8 @@ restore
 mat tab4A2 = (all[1,1], ., ., all[1,4], ., ., 2 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 mat list tab4A2
-mat rownames tab4A2 = "Retaliation_Against_WB" "Fired" "Harassed" "Quit" ///
-				"Threat" "Demotion" "Lawsuit" "None"
+mat rownames tab4A2 = "Retaliation_Against_WB" "Fired" "None" "Harassed" "Threat" "Quit" ///
+				"Demotion" "Lawsuit"
 *--------------------------------------------
 * Now export to excel workbook
 preserve
@@ -934,7 +954,7 @@ preserve
 		replace `var' = "" if `var' == "."
 	}
 	drop obsP subtable
-	export excel "draft_tables.xls", sheet("4.A") sheetrep first(var)
+	export excel "$dropbox/draft_tables.xls", sheet("4.A") sheetrep first(var)
 restore
 
 } // end Panel A ---------------------------------------------------------------
@@ -988,8 +1008,8 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 		merge 1:1 response using `public4`panel'1M', assert(3) nogen
 		merge 1:1 response using `public4`panel'1U', assert(3) nogen
 		gsort -allegationsL -allegationsM -allegationsU
-		br
-		pause
+			br
+			pause
 		mkmat obsL allegationsL settlementL ///
 				obsM allegationsM settlementM ///
 				obsU allegationsU settlementU, mat(all) rownames(response)
@@ -1004,8 +1024,14 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 	mat tab4`panel'1 = (all[1,1], ., ., all[1,4], ., ., all[1,7], ., ., 1 \ /* put total non-missing obs on first line only */ ///
 				`other_rows')
 	mat list tab4`panel'1
-	mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Internal_Investigation" ///
-						"Dismissal/Retaliation" "Suspension" "Unknown"
+	if "`panel'" == "B" {
+		mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Unknown" "Cover_Up" ///
+						"Internal_Investigation" "Suspension" "Dismissal/Retaliation"  
+	}
+	if "`panel'" == "C" {
+		mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Unknown" ///
+						"Internal_Investigation" "Suspension" "Dismissal/Retaliation" 
+	}
 
 * --- Firm Retaliation Against Whistleblower --- *
 	drop stlmt*
@@ -1049,8 +1075,8 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 		merge 1:1 retaliation using `public4`panel'2M', assert(3) nogen
 		merge 1:1 retaliation using `public4`panel'2U', assert(3) nogen
 		gsort -allegationsL -allegationsM -allegationsU
-		br
-		pause
+			br
+			pause
 		mkmat obsL allegationsL settlementL ///
 				obsM allegationsM settlementM ///
 				obsU allegationsU settlementU, mat(all) rownames(retaliation)
@@ -1065,8 +1091,8 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 	mat tab4`panel'2 = (all[1,1], ., ., all[1,4], ., ., all[1,7], ., ., 2 \ /* put total non-missing obs on first line only */ ///
 				`other_rows')
 	mat list tab4`panel'2
-	mat rownames tab4`panel'2 = "Retaliation_Against_WB" "Fired" "Harassed" "Threat" ///
-					"Quit" "Demotion" "None" "Lawsuit"
+	mat rownames tab4`panel'2 = "Retaliation_Against_WB" "Fired" "None" "Harassed" "Threat" ///
+					"Quit" "Demotion" "Lawsuit"
 *--------------------------------------------
 * Now export to excel workbook
 	preserve
@@ -1105,7 +1131,7 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 			replace `var' = "" if `var' == "."
 		}
 		drop obsM obsU subtable
-		export excel "draft_tables.xls", sheet("4.`panel'") sheetrep first(var)
+		export excel "$dropbox/draft_tables.xls", sheet("4.`panel'") sheetrep first(var)
 	restore
 } // end panel loop
 } // end Panels B & C ----------------------------------------------------------
