@@ -279,8 +279,7 @@ tab job_title if mgmt_class == "Lower";
 */
 
 gen wb_type = "(Former) Employee" if internal == 1;
-replace wb_type = "External Auditor" if strpos(lower(wb_description_external), "auditor") > 0
-								& internal == 0;
+replace wb_type = "External Auditor" if strpos(lower(wb_description_external), "auditor") > 0 | ext_auditor == 1
 replace wb_type = "Customer/Client" if (inlist(wb_description_external, "Customer", "Consumer")
 								| strpos(lower(wb_description_external), "patient") > 0
 								| strpos(lower(wb_description_external), "client") > 0)
@@ -319,7 +318,8 @@ gen wb_age_bin = int(wb_age/10)*10
 	lab val wb_age_bin age_bins
 *-------------------------------------------
 
-replace case_id = 512 if case_id == 3498 ///
-	& caption == "US ex rel Teodoro, Mercedes & Tommy v Neocare Health Systems Inc F/K/A Neocare Healthcare et al"
+*zero real change for this one, think have already change case_id to 512
+*replace case_id = 512 if case_id == 3498 ///
+*	& caption == "US ex rel Teodoro, Mercedes & Tommy v Neocare Health Systems Inc F/K/A Neocare Healthcare et al"
 	
 
