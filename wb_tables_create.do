@@ -12,7 +12,7 @@ set scheme s1color, perm
 pause off
 
 *---------------------------
-local run_1A 0
+local run_1A 1
 local run_1B 0
 local run_1C 0
 local run_1D 0
@@ -21,8 +21,8 @@ local run_3A 0
 local run_3BC 0
 local run_4A 0
 local run_4BC 0
-local run_5 1
-local run_all 0
+local run_5 0
+local run_all 1
 *---------------------------
 
 cap cd "C:\Users\lmostrom\Dropbox\Violation paper\whistleblower paper\"
@@ -56,11 +56,29 @@ restore
 mat A = (A \ 0, 0, 0)
 
 *Third row
-foreach col in case_id gvkey wb_id { 
+foreach col in case_id wb_id { 
 	tab tag_`col', subpop(tag_`col')
 	local N_`col' = `r(N)' // number of unique cases, firms, or whistleblowers
 }
-mat A = (A \ `N_case_id', `N_gvkey', `N_wb_id')
+
+	preserve // -- Counting unique firms ---
+		keep caption
+			duplicates drop
+		*Split caption to pull out all firm names & count unique firms
+		split caption, gen(capsplit) p(" v ") // pull list of defendants out of caption
+			gen def_pos = strpos(capsplit1, " v. ") + 4 if capsplit2 == ""
+			replace capsplit2 = substr(capsplit1, def_pos, .) if def_pos > 4 & def_pos != . // i.e. strpos > 0
+		split capsplit2, gen(defendant) p("; ") // separate multiple defendants
+		reshape long defendant, i(caption) j(j)
+			drop if defendant == ""
+		replace defendant = upper(defendant) // in case upper/lower case differences
+		drop if strpos(defendant, ", ") > 0 // probably a person
+		egen tag_firm = tag(defendant)
+		collapse (sum) tag_firm
+			local N_firms: dis tag_firm
+	restore // ------------------------------
+
+mat A = (A \ `N_case_id', `N_firms', `N_wb_id')
 
 *Replace second row as difference between rows 1 and 3
 	forval j = 1/3 { // loop through columns 1-3
@@ -71,11 +89,30 @@ mat A = (A \ `N_case_id', `N_gvkey', `N_wb_id')
 local i = 5 // going to refer to row 5
 foreach if_st in "if inlist(internal, 0, .)" /* less external whistleblowers */ ///
 				 "if internal == 1 & gvkey == ." /* less private firms */ {
-	foreach col in case_id gvkey wb_id { 
+	foreach col in case_id wb_id { 
 		tab tag_`col' `if_st', subpop(tag_`col')
 		local N_`col' = `r(N)' // number of unique cases, firms, or whistleblowers
 	}
-	mat A = (A \ `N_case_id', `N_gvkey', `N_wb_id') // add row for "less [...]"
+
+	preserve // -- Counting unique firms ---
+		keep `if_st'
+			keep caption
+			duplicates drop
+		*Split caption to pull out all firm names & count unique firms
+		split caption, gen(capsplit) p(" v ") // pull list of defendants out of caption
+			gen def_pos = strpos(capsplit1, " v. ") + 4 if capsplit2 == ""
+			replace capsplit2 = substr(capsplit1, def_pos, .) if def_pos > 4 & def_pos != . // i.e. strpos > 0
+		split capsplit2, gen(defendant) p("; ") // separate multiple defendants
+		reshape long defendant, i(caption) j(j)
+			drop if defendant == ""
+		replace defendant = upper(defendant) // in case upper/lower case differences
+		drop if strpos(defendant, ", ") > 0 // probably a person
+		egen tag_firm = tag(defendant)
+		collapse (sum) tag_firm
+			local N_firms: dis tag_firm
+	restore // -----------------------------
+
+	mat A = (A \ `N_case_id', `N_firms', `N_wb_id') // add row for "less [...]"
 	
 	mat A = (A \ 0, 0, 0) // add empty row for "sample used for Tables X-Y" to be filled in
 	local i_2 = `i' - 2 // row number 2 rows up
@@ -299,7 +336,7 @@ preserve // now do the left side of the table, "All Firms"
 	egen obsA = total(allegations)
 	ren allegations allegationsA
 	ren settlement settlementA
-	gsort other_function -allegationsA
+	gsort other_function -allegationsA -allegationsP
 		*br
 		*pause // to know what order row names should go in
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(wb_function)
@@ -466,7 +503,7 @@ preserve // -- now do left side of table, "All Firms"
 	ren n allegationsA
 	ren stlmt_ settlementA
 	merge 1:1 channel using `public3A2', assert(3)
-	gsort -allegationsA
+	gsort -allegationsA -allegationsP
 		br
 		*pause
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(channel)
@@ -512,7 +549,7 @@ preserve // -- now do left side of table, "All Firms"
 	ren n allegationsA
 	ren stlmt_ settlementA
 	merge 1:1 channel using `public3A3', assert(3)
-	gsort -allegationsA
+	gsort -allegationsA -allegationsP
 		br
 		*pause
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(channel)
@@ -746,7 +783,7 @@ foreach panel in "B" "C" {
 	if "`panel'" == "C" {
 		mat rownames tab3`panel'4 = "Function" "Sales" "Health_Professional" "Finance/Accounting" ///
 					"Quality_Assurance" "Operations" "Auditor" "Legal/Compliance" ///
-					"Consultant" "Administrator" "Marketing" "HR" "IT" ///
+					"Consultant" "Administrator" "Marketing" "IT" "HR" ///
 					"Other_Employee" "Other_Manager"
 	}
 	mat list tab3`panel'4
@@ -857,7 +894,7 @@ preserve // -- now do left side of table, "All Firms"
 	ren n allegationsA
 	ren stlmt_ settlementA
 	merge 1:1 response using `public4A1', assert(3)
-	gsort -allegationsA
+	gsort -allegationsA -allegationsP
 		br
 		*pause
 		drop if allegationsA == .
@@ -904,7 +941,7 @@ preserve // -- now do left side of table, "All Firms"
 	ren n allegationsA
 	ren stlmt_ settlementA
 	merge 1:1 retaliation using `public4A2', assert(3)
-	gsort -allegationsA
+	gsort -allegationsA -allegationsP
 		br
 		*pause
 	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(retaliation)
@@ -1030,7 +1067,7 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 	}
 	if "`panel'" == "C" {
 		mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Unknown" ///
-						"Internal_Investigation" "Suspension" "Dismissal/Retaliation" 
+						"Internal_Investigation" "Dismissal/Retaliation" "Suspension"
 	}
 
 * --- Firm Retaliation Against Whistleblower --- *
