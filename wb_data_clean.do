@@ -233,6 +233,10 @@ use "$dropbox/master_dataset_bk.dta", clear
 
 	egen n_retaliations = rowtotal(retaliation_demotion retaliation_fired retaliation_harassed retaliation_lawsuit retaliation_threat)
 		replace retaliation_none = 1 if n_retaliations == 0 & wb_raised_issue_internally == "YES"
+
+	replace reason_not_raised_internally = "no information" if (reason_not_raised_internally == "" | reason_not_raised_internally == "Added observation"
+	replace reason_not_raised_internally = "resisted demands" if strpos(lower(reason_not_raised_internally), "resisted de") > 0
+
 *=============================================================================================
 	lab def genders 1 "Male" 0 "Female"
 		lab val male genders
