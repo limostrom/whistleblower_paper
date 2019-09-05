@@ -12,11 +12,11 @@ set scheme s1color, perm
 pause off
 
 *---------------------------
-local run_1A 1
-local run_1B 1
-local run_1C 1
-local run_1D 1
-local run_2 0
+local run_1A 0
+local run_1B 0
+local run_1C 0
+local run_1D 0
+local run_2 1
 local run_3A 0
 local run_3BC 0
 local run_4A 0
@@ -223,8 +223,6 @@ if `run_2' == 1 | `run_all' == 1 {
 codebook wb_id
 codebook case_id
 
-* not sure where to put but I'm gonna put it here first 
-replace male = "Unspecified" if male == ""
 
 * --- Male --- *
 preserve // -- first do left side of table, "All Firms"
@@ -334,14 +332,15 @@ restore
 		local other_rows "`other_rows' ., all[`x',2..4], ., all[`x',6..8], 3" /* leave obs empty, fill in others */
 		if `x' < 4 local other_rows "`other_rows' \ " // add line break if not end
 	}
-mat tab2C = (all[1,1], ., ., all[1,5], ., ., 3 \ /* put total non-missing obs on first line only */ ///
+mat tab2C = (all[1,1], ., ., ., all[1,5], ., ., ., 3 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 mat rownames tab2C = "Rank" "Rank_and_File" "Middle_Management" "Unspecified" "Upper_Management"
 mat list tab2C
 
-/*
+
 * --- Function --- *
 * Wair for reply regarding functions 
+replace wb_function = "Unspecified" if wb_function == ""
 preserve // -- first do right side of table, "Public Firms"
 	keep if gvkey != .
 	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(wb_function other_function)
@@ -358,10 +357,11 @@ preserve // now do the left side of the table, "All Firms"
 	egen obsA = total(allegations)
 	ren allegations allegationsA
 	ren settlement settlementA
+	ren ave_settlement ave_settlementA
 	gsort other_function -allegationsA -allegationsP
 		*br
 		*pause // to know what order row names should go in
-	mkmat obsA allegationsA settlementA obsP allegationsP settlementP, mat(all) rownames(wb_function)
+	mkmat obsA allegationsA ave_settlementA settlementA obsP allegationsP ave_settlementP settlementP, mat(all) rownames(wb_function)
 restore
 
 
@@ -371,7 +371,7 @@ restore
 		local other_rows "`other_rows' ., all[`x',2..4], ., all[`x',6..8], 4" /* leave obs empty, fill in others */
 		if `x' < 15 local other_rows "`other_rows' \ " // add line break if not end
 	}
-mat tab2D = (all[1,1], ., ., ., all[1,4], ., ., ., 4 \ /* put total non-missing obs on first line only */ ///
+mat tab2D = (all[1,1], ., ., ., all[1,5], ., ., ., 4 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 mat rownames tab2D = "Function" "Health_Professional" "Finance/Accounting" "Sales" ///
 				"Operations" "Quality_Assurance" "Administrator" "Legal/Compliance" ///
@@ -379,7 +379,7 @@ mat rownames tab2D = "Function" "Health_Professional" "Finance/Accounting" "Sale
 				"Other_Employee" "Other_Manager" "Unspecified"
 mat list tab2D
 
-*/
+
 
 * --- Repeat Whistleblower --- *
 preserve
@@ -449,6 +449,7 @@ preserve
 	foreach var of varlist *_pct_str settlement? ave_settlement* {
 		replace `var' = "" if `var' == "."
 	}
+	drop subtable
 	export excel "$dropbox/draft_tables.xls", sheet("2") sheetrep first(var)
 restore
 } // end Table 2 ---------------------------------------------------------------	
