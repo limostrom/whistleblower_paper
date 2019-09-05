@@ -278,6 +278,7 @@ tab job_title if mgmt_class == "Middle";
 tab job_title if mgmt_class == "Lower";
 */
 
+
 gen wb_type = "(Former) Employee" if internal == 1;
 replace wb_type = "External Auditor" if strpos(lower(wb_description_external), "auditor") > 0 | ext_auditor == 1;
 replace wb_type = "Customer/Client" if (inlist(wb_description_external, "Customer", "Consumer")

@@ -24,12 +24,25 @@ local run_4BC 0
 local run_5 0
 local run_all 1
 *---------------------------
+global name dyu
+*global name lmostrom
 
-cap cd "C:\Users\lmostrom\Dropbox\Violation paper\whistleblower paper\"
+cap cd "C:\Users\$name\Dropbox\Violation paper\whistleblower paper\"
+
+
 
 
 *-------------------------------------------------------------------------------
+local wd: pwd // saves local of current working directory, C:\Users\[]
+if substr("`wd'", 10, 2) == "lm" { // if on Lauren's computer
+		include "C:/Users/lmostrom/Documents/GitHub/whistleblower_paper/assign_global_filepaths.do"
+}
+if substr("`wd'", 10, 2) == "dy" { // if on Dolly's computer
+	include "C:/Users/dyu/Desktop/whistleblower_paper/assign_global_filepaths.do"
+}
+
 include "$repo/wb_data_clean.do"
+
 	egen wb_id = group(wb_full_name)
 	egen tag_case_id = tag(case_id)
 	egen tag_gvkey = tag(gvkey)
@@ -283,11 +296,11 @@ mat tab2B = (all[1,1], ., ., public[1,1], ., ., 2 \ /* put total non-missing obs
 mat list tab2B
 mat rownames tab2B = "Age" "18-19" "20-29" "30-39" "40-49" "50-59" "60-69" "70-79"
 */
+
 * --- Management Rank --- *
 preserve // -- first do right side of table, "Public Firms"
 	keep if gvkey != .
 	collapse (count) allegations = case_id (sum) settlement, by(mgmt_class)
-		drop if mgmt_class == ""
 	ren allegations allegationsP
 	ren settlement settlementP
 	egen obsP = total(allegationsP)
@@ -296,7 +309,6 @@ preserve // -- first do right side of table, "Public Firms"
 restore
 preserve // -- now do left side of table, "All Firms"
 	collapse (count) allegations = case_id (sum) settlement, by(mgmt_class)
-		drop if mgmt_class == ""
 	egen obsA = total(allegations)
 	ren allegations allegationsA
 	ren settlement settlementA
@@ -309,20 +321,20 @@ restore
 
 *store local string to input other all[] and public[] rows into the tab2 matrix
 	local other_rows ""
-	forval x=1/3 {
+	forval x=1/4 {
 		local other_rows "`other_rows' ., all[`x',2..3], ., all[`x',5..6], 3" /* leave obs empty, fill in others */
-		if `x' < 3 local other_rows "`other_rows' \ " // add line break if not end
+		if `x' < 4 local other_rows "`other_rows' \ " // add line break if not end
 	}
 mat tab2C = (all[1,1], ., ., all[1,4], ., ., 3 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
-mat rownames tab2C = "Rank" "Rank_and_File" "Middle_Management" "Upper_Management"
+mat rownames tab2C = "Rank" "Rank_and_File" "Middle_Management" "Unspecified" "Upper_Management"
 mat list tab2C
 
 * --- Function --- *
+* Wair for reply regarding functions 
 preserve // -- first do right side of table, "Public Firms"
 	keep if gvkey != .
 	collapse (count) allegations = case_id (sum) settlement, by(wb_function other_function)
-		drop if wb_function == ""
 	ren allegations allegationsP
 	ren settlement settlementP
 	egen obsP = total(allegationsP)
@@ -345,16 +357,16 @@ restore
 
 *store local string to input other all[] and public[] rows into the tab2 matrix
 	local other_rows ""
-	forval x=1/14 {
+	forval x=1/15 {
 		local other_rows "`other_rows' ., all[`x',2..3], ., all[`x',5..6], 4" /* leave obs empty, fill in others */
-		if `x' < 14 local other_rows "`other_rows' \ " // add line break if not end
+		if `x' < 15 local other_rows "`other_rows' \ " // add line break if not end
 	}
 mat tab2D = (all[1,1], ., .,all[1,4], ., ., 4 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 mat rownames tab2D = "Function" "Health_Professional" "Finance/Accounting" "Sales" ///
 				"Operations" "Quality_Assurance" "Administrator" "Legal/Compliance" ///
 				 "Auditor" "Marketing" "Consultant" "HR" "IT" ///
-				"Other_Employee" "Other_Manager"
+				"Other_Employee" "Other_Manager" "Unspecified"
 mat list tab2D
 
 * --- Repeat Whistleblower --- *
@@ -418,7 +430,6 @@ preserve
 	foreach var of varlist *_pct_str settlement? {
 		replace `var' = "" if `var' == "."
 	}
-	drop obsP subtable
 	export excel "$dropbox/draft_tables.xls", sheet("2") sheetrep first(var)
 restore
 } // end Table 2 ---------------------------------------------------------------	

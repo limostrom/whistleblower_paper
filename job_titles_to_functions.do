@@ -72,4 +72,5 @@ replace wb_function = "Other Manager" if (strpos(lower(job_title), "president") 
 									| job_title == "Ceo")
 										& wb_function == "";
 replace wb_function = "Other Employee" if wb_function == "" & job_title != "" & internal == 1;
+replace wb_function = "Unspecified" if wb_function == "" & internal == 1
 #delimit cr
