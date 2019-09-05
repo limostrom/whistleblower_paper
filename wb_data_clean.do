@@ -327,4 +327,4 @@ gen wb_age_bin = int(wb_age/10)*10
 *replace case_id = 512 if case_id == 3498 ///
 *	& caption == "US ex rel Teodoro, Mercedes & Tommy v Neocare Health Systems Inc F/K/A Neocare Healthcare et al"
 	
-
+include "$repo/job_titles_to_functions.do"

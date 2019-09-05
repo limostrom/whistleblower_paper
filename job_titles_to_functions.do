@@ -9,7 +9,8 @@ gen wb_function = ""
 #delimit ;
 replace wb_function = "Administrator" if (inlist(job_title, "Administrator", "Assistant",
 								"Administrative Director", "Office Manager", "Front Office Manager",
-								"Practice Administrator", "Patient Coordinator", "Care Coordinator"))
+								"Practice Administrator", "Patient Coordinator", "Care Coordinator")
+								| strpos(lower(job_title), "administrat") > 0)
 										& wb_function == "";
 replace wb_function = "Auditor" if strpos(lower(job_title), "audit") > 0 & wb_function == "";
 replace wb_function = "Legal/Compliance" if (strpos(lower(job_title), "compliance") > 0
