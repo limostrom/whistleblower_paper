@@ -13,16 +13,16 @@ pause off
 
 *---------------------------
 local run_1A 1
-local run_1B 0
-local run_1C 0
-local run_1D 0
+local run_1B 1
+local run_1C 1
+local run_1D 1
 local run_2 0
 local run_3A 0
 local run_3BC 0
 local run_4A 0
 local run_4BC 0
 local run_5 0
-local run_all 1
+local run_all 0
 *---------------------------
 
 cap cd "C:\Users\lmostrom\Dropbox\Violation paper\whistleblower paper\"
@@ -31,9 +31,11 @@ cap cd "C:\Users\lmostrom\Dropbox\Violation paper\whistleblower paper\"
 *-------------------------------------------------------------------------------
 include "$repo/wb_data_clean.do"
 	egen wb_id = group(wb_full_name)
-	egen tag_case_id = tag(case_id)
+	egen alleg_id = group(wb_full_name case_id)
+	egen tag_caption = tag(caption)
 	egen tag_gvkey = tag(gvkey)
 	egen tag_wb_id = tag(wb_id)
+	egen tag_alleg_id = tag(wb_id caption)
 *-------------------------------------------------------------------------------
 * ================================== TABLE 1 ================================== *
 * Panel A
@@ -44,19 +46,22 @@ preserve // -- Load in full QTRACK FOIA Request dataset
 	keep caption relator_name
 	egen tag_case = tag(caption)
 	egen tag_rel = tag(relator_name)
+	egen tag_alleg = tag(caption relator_name)
 	tab tag_case, subpop(tag_case)
 		local N_case = `r(N)'
 	tab tag_rel, subpop(tag_rel)
 		local N_wb = `r(N)'
+	tab tag_alleg, subpop(tag_alleg)
+		local N_alleg = `r(N)'
 
-	mat A = (`N_case', ., `N_wb') // full sample of allegations, first row of table
+	mat A = (`N_case', ., `N_wb', `N_alleg') // full sample of allegations, first row of table
 restore
 
 *Initiate second row
-mat A = (A \ 0, 0, 0)
+mat A = (A \ 0, 0, 0, 0)
 
 *Third row
-foreach col in case_id wb_id { 
+foreach col in caption wb_id alleg_id { 
 	tab tag_`col', subpop(tag_`col')
 	local N_`col' = `r(N)' // number of unique cases, firms, or whistleblowers
 }
@@ -78,10 +83,10 @@ foreach col in case_id wb_id {
 			local N_firms: dis tag_firm
 	restore // ------------------------------
 
-mat A = (A \ `N_case_id', `N_firms', `N_wb_id')
+mat A = (A \ `N_caption', `N_firms', `N_wb_id', `N_alleg_id')
 
 *Replace second row as difference between rows 1 and 3
-	forval j = 1/3 { // loop through columns 1-3
+	forval j = 1/4 { // loop through columns 1-3
 		mat A[2,`j'] = A[1,`j'] - A[3,`j'] 
 			// less cases without court filings
 	}
@@ -89,7 +94,7 @@ mat A = (A \ `N_case_id', `N_firms', `N_wb_id')
 local i = 5 // going to refer to row 5
 foreach if_st in "if inlist(internal, 0, .)" /* less external whistleblowers */ ///
 				 "if internal == 1 & gvkey == ." /* less private firms */ {
-	foreach col in case_id wb_id { 
+	foreach col in caption wb_id alleg_id { 
 		tab tag_`col' `if_st', subpop(tag_`col')
 		local N_`col' = `r(N)' // number of unique cases, firms, or whistleblowers
 	}
@@ -112,13 +117,13 @@ foreach if_st in "if inlist(internal, 0, .)" /* less external whistleblowers */ 
 			local N_firms: dis tag_firm
 	restore // -----------------------------
 
-	mat A = (A \ `N_case_id', `N_firms', `N_wb_id') // add row for "less [...]"
+	mat A = (A \ `N_caption', `N_firms', `N_wb_id', `N_alleg_id') // add row for "less [...]"
 	
-	mat A = (A \ 0, 0, 0) // add empty row for "sample used for Tables X-Y" to be filled in
+	mat A = (A \ 0, 0, 0, 0) // add empty row for "sample used for Tables X-Y" to be filled in
 	local i_2 = `i' - 2 // row number 2 rows up
 	local i_1 = `i' - 1 // row number 1 row up
 	
-	forval j = 1/3 { // loop through columns 1-3
+	forval j = 1/4 { // loop through columns 1-3
 		mat A[`i',`j'] = A[`i_2',`j'] - A[`i_1',`j'] 
 			// sample used for Tables X-Y = (previous sample size) - (less [...] sample size)
 	}
@@ -127,8 +132,8 @@ foreach if_st in "if inlist(internal, 0, .)" /* less external whistleblowers */ 
 
 preserve
 	drop _all // clear dataset in memory but keep matrices saved in memory
-	svmat2 A, names(cases unique_firms unique_wbs) // load matrix A in as a dataset
-		foreach var in cases unique_firms unique_wbs {
+	svmat2 A, names(cases unique_firms unique_wbs unique_allegations) // load matrix A in as a dataset
+		foreach var in cases unique_firms unique_wbs unique_allegations {
 			tostring `var', force replace
 			replace `var' = "(" + `var' + ")" if _n == 2 | _n == 4 | _n == 6
 		}
@@ -142,7 +147,6 @@ restore
 if `run_1B' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve
-	keep if gvkey != .
 	codebook wb_id 
 	collapse (count) cases = case_id (mean) avg_settlement = settlement ///
 			 (sum) tot_settlements = settlement, by(wb_type) fast
@@ -165,7 +169,7 @@ if `run_1C' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve
 	keep if internal == 1 & gvkey != .
-	tab fyear if tag_case_id, matcell(C) matrow(rC)
+	tab fyear if tag_caption, matcell(C) matrow(rC)
 	mat C = (rC, C)
 	drop _all
 	svmat2 C, names(year cases)
@@ -184,7 +188,7 @@ preserve
 keep if internal == 1 & gvkey != .
 merge m:1 caption using "$dropbox/gov_agencies_from_qtrack.dta", nogen keep(1 3) keepus(primary_agency)
 include "$repo/replace_agency_names.do"
-collapse (sum) cases = tag_case_id /*unique_firms = tag_gvkey unique_wbs = tag_wb_id*/ ///
+collapse (sum) cases = tag_caption /*unique_firms = tag_gvkey unique_wbs = tag_wb_id*/ ///
 	, by(primary_agency) fast
 g byte nonmiss = primary_agency != "Unknown"
 drop if cases == 0
@@ -198,7 +202,6 @@ restore
 } // end Panel D ---------------------------------------------------------------
 
 keep if internal == 1
-include "$repo/job_titles_to_functions.do"
 	gen other_function = inlist(wb_function, "Other Employee", "Other Manager", "Unspecified")
 	bys wb_id (received_date): gen repeat_wb_all = _N > 1
 	bys wb_id (received_date): gen repeat_wb_not1st = _n > 1
