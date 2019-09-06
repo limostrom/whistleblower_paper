@@ -42,11 +42,7 @@ if substr("`wd'", 10, 2) == "dy" { // if on Dolly's computer
 include "$repo/wb_data_clean.do"
 
 	egen wb_id = group(wb_full_name)
-	egen alleg_id = group(wb_full_name case_id)
-	egen tag_caption = tag(caption)
-	egen tag_gvkey = tag(gvkey)
-	egen tag_wb_id = tag(wb_id)
-	egen tag_alleg_id = tag(wb_id caption)
+	egen alleg_id = group(wb_full_name caption)
 *-------------------------------------------------------------------------------
 * ================================== TABLE 1 ================================== *
 * Panel A
@@ -55,10 +51,10 @@ if `run_1A' == 1 | `run_all' == 1 {
 preserve // -- Load in full QTRACK FOIA Request dataset
 	import excel "$dropbox/QTRACK_FOIA_Request_060313.xls", first case(lower) clear
 	keep caption relator_name
-	egen tag_case = tag(caption)
+	egen tag_caption = tag(caption)
 	egen tag_rel = tag(relator_name)
 	egen tag_alleg = tag(caption relator_name)
-	tab tag_case, subpop(tag_case)
+	tab tag_caption, subpop(tag_caption)
 		local N_case = `r(N)'
 	tab tag_rel, subpop(tag_rel)
 		local N_wb = `r(N)'
@@ -72,9 +68,13 @@ restore
 mat A = (A \ 0, 0, 0, 0)
 
 *Third row
-foreach col in caption wb_id alleg_id { 
-	tab tag_`col', subpop(tag_`col')
-	local N_`col' = `r(N)' // number of unique cases, firms, or whistleblowers
+foreach col in caption wb_id alleg_id {
+	preserve
+		egen tag_`col' = tag(`col')
+		pause
+		collapse (sum) tag_`col'
+			local N_`col': dis tag_`col' // number of unique cases, firms, or whistleblowers
+	restore
 }
 
 	preserve // -- Counting unique firms ---
@@ -95,19 +95,29 @@ foreach col in caption wb_id alleg_id {
 	restore // ------------------------------
 
 mat A = (A \ `N_caption', `N_firms', `N_wb_id', `N_alleg_id')
-
+mat list A
+pause
 *Replace second row as difference between rows 1 and 3
-	forval j = 1/4 { // loop through columns 1-3
+	forval j = 1/4 { // loop through columns 1-4
 		mat A[2,`j'] = A[1,`j'] - A[3,`j'] 
 			// less cases without court filings
 	}
 	
-local i = 5 // going to refer to row 5
-foreach if_st in "if inlist(internal, 0, .)" /* less external whistleblowers */ ///
-				 "if internal == 1 & gvkey == ." /* less private firms */ {
+local i = 5 // going to refer to row 6
+foreach if_st in "if internal == 1" /* less external whistleblowers */ ///
+				 "if internal == 1 & gvkey != ." /* less private firms */ {
 	foreach col in caption wb_id alleg_id { 
-		tab tag_`col' `if_st', subpop(tag_`col')
-		local N_`col' = `r(N)' // number of unique cases, firms, or whistleblowers
+		if "`col'" == "caption" local a = 1 // column numbers for matrix
+		if "`col'" == "wb_id" local a = 3
+		if "`col'" == "alleg_id" local a = 4
+
+		preserve
+			keep `if_st'
+			egen tag_`col' = tag(`col')
+			collapse (sum) tag_`col'
+				local N`a': dis tag_`col'
+			pause
+		restore
 	}
 
 	preserve // -- Counting unique firms ---
@@ -125,19 +135,20 @@ foreach if_st in "if inlist(internal, 0, .)" /* less external whistleblowers */ 
 		drop if strpos(defendant, ", ") > 0 // probably a person
 		egen tag_firm = tag(defendant)
 		collapse (sum) tag_firm
-			local N_firms: dis tag_firm
+			local N2: dis tag_firm
 	restore // -----------------------------
 
-	mat A = (A \ `N_caption', `N_firms', `N_wb_id', `N_alleg_id') // add row for "less [...]"
-	
 	mat A = (A \ 0, 0, 0, 0) // add empty row for "sample used for Tables X-Y" to be filled in
 	local i_2 = `i' - 2 // row number 2 rows up
 	local i_1 = `i' - 1 // row number 1 row up
 	
 	forval j = 1/4 { // loop through columns 1-3
-		mat A[`i',`j'] = A[`i_2',`j'] - A[`i_1',`j'] 
+		mat A[`i_1',`j'] = A[`i_2',`j'] - `N`j''
 			// sample used for Tables X-Y = (previous sample size) - (less [...] sample size)
 	}
+
+	mat A = (A \ `N1', `N2', `N3', `N4') // add row for "less [...]"
+	
 	local i = `i' + 2 // do this 2 more rows down next time
 }
 
