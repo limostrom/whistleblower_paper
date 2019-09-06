@@ -76,6 +76,8 @@ use "$dropbox/master_dataset_bk.dta", clear
 	ren *, lower
 	ren no_retaliation retaliation_none // so consistent with other similar variables
 	gen retaliation_quit = quit
+	ren response_suspension retaliation_suspension
+	drop response_dismissal_or_retaliatio
 
 	duplicates drop
 *=============================================================================================
@@ -222,6 +224,7 @@ use "$dropbox/master_dataset_bk.dta", clear
 		replace `var' = 1 if `var' > 0 // some marked how many times channel used; just want whether it was
 		replace `var' = 0 if `var' == .
 	}
+
 	replace wb_raised_issue_internally = "NO" if inlist(wb_raised_issue_internally, ".", "", "NO ")
 		replace gov = 1 if wb_raised_issue_internally == "Went to state regulator, her dad got punished"
 			replace wb_raised_issue_internally = "NO" if wb_raised_issue_internally == "Went to state regulator, her dad got punished"
@@ -323,3 +326,10 @@ gen wb_age_bin = int(wb_age/10)*10
 *	& caption == "US ex rel Teodoro, Mercedes & Tommy v Neocare Health Systems Inc F/K/A Neocare Healthcare et al"
 	
 include "$repo/job_titles_to_functions.do"
+
+/* Silenced because only need to do it sometimes
+preserve
+	keep if gvkey != .
+	save "$dropbox/wb_cases_public.dta", replace
+restore
+*/
