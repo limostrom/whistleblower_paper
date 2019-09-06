@@ -71,7 +71,6 @@ mat A = (A \ 0, 0, 0, 0)
 foreach col in caption wb_id alleg_id {
 	preserve
 		egen tag_`col' = tag(`col')
-		pause
 		collapse (sum) tag_`col'
 			local N_`col': dis tag_`col' // number of unique cases, firms, or whistleblowers
 	restore
@@ -95,8 +94,7 @@ foreach col in caption wb_id alleg_id {
 	restore // ------------------------------
 
 mat A = (A \ `N_caption', `N_firms', `N_wb_id', `N_alleg_id')
-mat list A
-pause
+
 *Replace second row as difference between rows 1 and 3
 	forval j = 1/4 { // loop through columns 1-4
 		mat A[2,`j'] = A[1,`j'] - A[3,`j'] 
@@ -116,7 +114,6 @@ foreach if_st in "if internal == 1" /* less external whistleblowers */ ///
 			egen tag_`col' = tag(`col')
 			collapse (sum) tag_`col'
 				local N`a': dis tag_`col'
-			pause
 		restore
 	}
 
@@ -191,6 +188,7 @@ if `run_1C' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve
 	keep if internal == 1 & gvkey != .
+	egen tag_caption = tag(caption)
 	tab fyear if tag_caption, matcell(C) matrow(rC)
 	mat C = (rC, C)
 	drop _all
@@ -208,6 +206,7 @@ if `run_1D' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve
 keep if internal == 1 & gvkey != .
+	egen tag_caption = tag(caption)
 merge m:1 caption using "$dropbox/gov_agencies_from_qtrack.dta", nogen keep(1 3) keepus(primary_agency)
 include "$repo/replace_agency_names.do"
 collapse (sum) cases = tag_caption /*unique_firms = tag_gvkey unique_wbs = tag_wb_id*/ ///
@@ -224,7 +223,7 @@ restore
 } // end Panel D ---------------------------------------------------------------
 
 keep if internal == 1
-	gen other_function = inlist(wb_function, "Other Employee", "Other Manager", "Unspecified")
+	gen missing_job_title = job_title == ""
 	bys wb_id (received_date): gen repeat_wb_all = _N > 1
 	bys wb_id (received_date): gen repeat_wb_not1st = _n > 1
 
@@ -316,7 +315,7 @@ mat rownames tab2B = "Age" "18-19" "20-29" "30-39" "40-49" "50-59" "60-69" "70-7
 * --- Management Rank --- *
 preserve // -- first do right side of table, "Public Firms"
 	keep if gvkey != .
-	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(mgmt_class)
+	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(mgmt_class missing_job_title)
 	ren allegations allegationsP
 	ren settlement settlementP
 	ren ave_settlement ave_settlementP
@@ -325,12 +324,13 @@ preserve // -- first do right side of table, "Public Firms"
 	save `public2C', replace
 restore
 preserve // -- now do left side of table, "All Firms"
-	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(mgmt_class)
+	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(mgmt_class missing_job_title)
 	egen obsA = total(allegations)
 	ren allegations allegationsA
 	ren settlement settlementA
 	ren ave_settlement ave_settlementA
-	merge 1:1 mgmt_class using `public2C', assert(3)
+	merge 1:1 mgmt_class using `public2C', assert(1 3)
+	sort missing_job_title mgmt_class
 		*br
 		*pause
 	mkmat obsA allegationsA ave_settlementA settlementA obsP allegationsP ave_settlementP settlementP, mat(all) rownames(mgmt_class)
@@ -345,16 +345,15 @@ restore
 	}
 mat tab2C = (all[1,1], ., ., ., all[1,5], ., ., ., 3 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
-mat rownames tab2C = "Rank" "Rank_and_File" "Middle_Management" "Unspecified" "Upper_Management"
+mat rownames tab2C = "Rank" "Rank_and_File" "Middle_Management" "Upper_Management" "No_Job_Title"
 mat list tab2C
 
 
 * --- Function --- *
-* Wair for reply regarding functions 
-replace wb_function = "Unspecified" if wb_function == ""
+replace wb_function = "No Job Title" if wb_function == "" & job_title == ""
 preserve // -- first do right side of table, "Public Firms"
 	keep if gvkey != .
-	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(wb_function other_function)
+	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(wb_function missing_job_title)
 	ren allegations allegationsP
 	ren settlement settlementP
 	ren ave_settlement ave_settlementP
@@ -363,13 +362,13 @@ preserve // -- first do right side of table, "Public Firms"
 	save `public2D', replace
 restore
 preserve // now do the left side of the table, "All Firms"
-	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(wb_function other_function)
+	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement = settlement, by(wb_function missing_job_title)
 	merge 1:1 wb_function using `public2D', assert(1 3)
 	egen obsA = total(allegations)
 	ren allegations allegationsA
 	ren settlement settlementA
 	ren ave_settlement ave_settlementA
-	gsort other_function -allegationsA -allegationsP
+	gsort missing_job_title -allegationsA -allegationsP
 		*br
 		*pause // to know what order row names should go in
 	mkmat obsA allegationsA ave_settlementA settlementA obsP allegationsP ave_settlementP settlementP, mat(all) rownames(wb_function)
@@ -378,16 +377,14 @@ restore
 
 *store local string to input other all[] and public[] rows into the tab2 matrix
 	local other_rows ""
-	forval x=1/15 {
+	forval x=1/5 {
 		local other_rows "`other_rows' ., all[`x',2..4], ., all[`x',6..8], 4" /* leave obs empty, fill in others */
-		if `x' < 15 local other_rows "`other_rows' \ " // add line break if not end
+		if `x' < 5 local other_rows "`other_rows' \ " // add line break if not end
 	}
-mat tab2D = (all[1,1], ., ., ., all[1,5], ., ., ., 4 \ /* put total non-missing obs on first line only */ ///
+mat tab2D = (all[1,1], ., ., ., all[1,5], ., ., ., 4 \  /* put total non-missing obs on first line only */ ///
 			`other_rows')
-mat rownames tab2D = "Function" "Health_Professional" "Finance/Accounting" "Sales" ///
-				"Operations" "Quality_Assurance" "Administrator" "Legal/Compliance" ///
-				 "Auditor" "Marketing" "Consultant" "HR" "IT" ///
-				"Other_Employee" "Other_Manager" "Unspecified"
+mat rownames tab2D = "Function" "Operations" "Health_Professional" "Finance/Accounting" ///
+						"Legal/Compliance" "No_Job_Title"
 mat list tab2D
 
 
@@ -784,7 +781,7 @@ foreach panel in "B" "C" {
 	preserve // -- first do right side of table, "External"
 		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "NO"
-		collapse (count) allegations = case_id (sum) settlement, by(wb_function other_function)
+		collapse (count) allegations = case_id (sum) settlement, by(wb_function missing_job_title)
 			drop if wb_function == ""
 		ren allegations allegationsE
 		ren settlement settlementE
@@ -795,13 +792,13 @@ foreach panel in "B" "C" {
 	preserve // now do the left side of the table, "Internal"
 		if "`panel'" == "C" drop if gvkey == .
 		keep if wb_raised_issue_internally == "YES"
-		collapse (count) allegations = case_id (sum) settlement, by(wb_function other_function)
+		collapse (count) allegations = case_id (sum) settlement, by(wb_function missing_job_title)
 			drop if wb_function == ""
 		merge 1:1 wb_function using `ext3`panel'4', assert(1 3)
 		egen obsI = total(allegations)
 		ren allegations allegationsI
 		ren settlement settlementI
-		gsort other_function -allegationsI -allegationsE
+		gsort missing_job_title -allegationsI -allegationsE
 			br
 			*pause // to know what order row names should go in
 		mkmat obsI allegationsI settlementI obsE allegationsE settlementE, mat(all) rownames(wb_function)

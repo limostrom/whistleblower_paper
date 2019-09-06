@@ -243,6 +243,8 @@ use "$dropbox/master_dataset_bk.dta", clear
 	replace reason_not_raised_internally = "no information" if (reason_not_raised_internally == "" | reason_not_raised_internally == "Added observation")
 	replace reason_not_raised_internally = "resisted demands" if strpos(lower(reason_not_raised_internally), "resisted de") > 0
 
+	include "$repo/code_missing_internal.do"
+
 *=============================================================================================
 	lab def genders 1 "Male" 0 "Female"
 		lab val male genders
@@ -281,7 +283,7 @@ replace mgmt_class = "Middle" if (strpos(lower(job_title_at_fraud_firm), "manage
 							strpos(lower(job_title_at_fraud_firm), "dean") > 0)
 							& mgmt_class == "";
 replace mgmt_class = "Lower" if mgmt_class == "" & internal == 1 & job_title != "";
-replace mgmt_class = "Unspecified" if mgmt_class == "" & internal == 1
+replace mgmt_class = "No Job Title" if mgmt_class == "" & internal == 1;
 
 /* Just to verify what job titles appear in each;
 tab job_title if mgmt_class == "Upper";
@@ -319,9 +321,7 @@ replace wb_type = "Lawyer/Law Firm" if (strpos(lower(wb_description_external), "
 replace wb_type = "Supplier" if wb_description_external == "Supplier";
 replace wb_type = "Tenant" if wb_description_external == "Tenant";
 replace wb_type = "Unspecified/Miscellaneous" if wb_type == "";
-#delimit cr
-
-include "$repo/code_missing_internal.do"								
+#delimit cr								
 
 *-------------------------------------------
 gen wb_age_bin = int(wb_age/10)*10
@@ -336,9 +336,15 @@ gen wb_age_bin = int(wb_age/10)*10
 	
 include "$repo/job_titles_to_functions.do"
 
+replace wb_function = "Legal/Compliance" if inlist(wb_function, "Auditor", "Quality Assurance")
+replace wb_function = "Health Professional" if wb_function == "Billing"
+replace wb_function = "Operations" if inlist(wb_function, "Administrator", "HR", "IT", "Marketing", "Sales", "Consultant")
+
 /* Silenced because only need to do it sometimes
 preserve
 	keep if gvkey != .
 	save "$dropbox/wb_cases_public.dta", replace
 restore
 */
+
+

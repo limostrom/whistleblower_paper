@@ -86,6 +86,7 @@ replace wb_description_external = "Customer" if case_id == 4308 ///
 replace wb_raised_issue_internally = "YES" if wb_raised_issue_internally == "" ///
 		& case_id == 2599 & wb_full_name == "Fields, Faye"
 *------------------------------------------------------------
+/* Silenced because not important and breaks
 replace internal_explanation = "Former CFO, asked to step down following merger" ///
 	if case_id == 230 & wb_full_name == "Edwards, Linda"
 replace internal_explanation = "Missing court filing" ///
@@ -93,4 +94,4 @@ replace internal_explanation = "Missing court filing" ///
 
 replace internal_explanation = "Unclear in court filing" ///
 	if internal_explanation == "" & internal == .
-
+*/
