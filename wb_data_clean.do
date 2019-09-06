@@ -337,8 +337,9 @@ gen wb_age_bin = int(wb_age/10)*10
 include "$repo/job_titles_to_functions.do"
 
 replace wb_function = "Legal/Compliance" if inlist(wb_function, "Auditor", "Quality Assurance")
-replace wb_function = "Health Professional" if wb_function == "Billing"
-replace wb_function = "Operations" if inlist(wb_function, "Administrator", "HR", "IT", "Marketing", "Sales", "Consultant")
+replace wb_function = "Finance/Accounting" if wb_function == "Billing"
+replace wb_function = "Operations" if inlist(wb_function, "Administrator", "HR", "IT", ///
+							"Marketing", "Sales", "Consultant", "Health Professional")
 
 /* Silenced because only need to do it sometimes
 preserve

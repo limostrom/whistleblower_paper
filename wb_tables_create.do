@@ -377,13 +377,13 @@ restore
 
 *store local string to input other all[] and public[] rows into the tab2 matrix
 	local other_rows ""
-	forval x=1/5 {
+	forval x=1/4 {
 		local other_rows "`other_rows' ., all[`x',2..4], ., all[`x',6..8], 4" /* leave obs empty, fill in others */
-		if `x' < 5 local other_rows "`other_rows' \ " // add line break if not end
+		if `x' < 4 local other_rows "`other_rows' \ " // add line break if not end
 	}
 mat tab2D = (all[1,1], ., ., ., all[1,5], ., ., ., 4 \  /* put total non-missing obs on first line only */ ///
 			`other_rows')
-mat rownames tab2D = "Function" "Operations" "Health_Professional" "Finance/Accounting" ///
+mat rownames tab2D = "Function" "Operations" "Finance/Accounting" ///
 						"Legal/Compliance" "No_Job_Title"
 mat list tab2D
 
