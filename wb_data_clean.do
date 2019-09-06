@@ -234,6 +234,9 @@ use "$dropbox/master_dataset_bk.dta", clear
 			replace wb_raised_issue_internally = "" if wb_raised_issue_internally == "Incomplete court files"
 			replace wb_raised_issue_internally = "YES" if wb_raised_issue_internally == "YES-implicitly"
 
+	egen n_reports = rowtotal(auditor billing colleague direct_supervisor gov hotline hr ///
+								legalcompliance relevantdirector topmanager)
+
 	egen n_responses = rowtotal(response_coverup response_ignored response_int_inv)
 		replace response_unknown = 1 if n_responses == 0 & wb_raised_issue_internally == "YES"
 
@@ -349,3 +352,4 @@ restore
 */
 
 
+replace wb_raised_issue_internally = "NO" if inlist(wb_raised_issue_internally, ".", "", "NO ") // just one more time for good measure??
