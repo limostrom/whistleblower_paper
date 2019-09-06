@@ -164,7 +164,8 @@ use "$dropbox/master_dataset_bk.dta", clear
 		caption == "US ex rel Thompson, Craig MD v Lifepointhospitals Inc; Aswell, Charles Dr"
 	drop if wb_full_name == "Peter Duprey" & conm == "HALLIBURTON CO" & ///
 		caption == "US ex rel Duprey, Peter v Halliburton Inc; KBR Inc" // wholly owned subsidiary, didn't actually work for them
-
+	drop if wb_full_name == "Carbaugh, David R." & conm == "" & ///
+		caption == "US ex rel Trice, Charles D; Carbaugh, David R v Westinghouse Elec Corp et al"
 
 *(c) Fix incorrect names and captions so the corrected excel files can be merged in on caption and wb_full_name
 	
@@ -204,6 +205,8 @@ use "$dropbox/master_dataset_bk.dta", clear
 		caption == "US ex rel Mateski, Steven v Raytheon Co; Northrop Grumman Corp"
 	replace internal = 0 if wb_full_name == "Masters, Thomas R." & conm == "METROPOLITN MTG & SEC  -CL A" & ///
 		caption == "US ex rel Masters, Thomas R v Sandifur, Cantwell Paul Jr; Metropolitan Mortgage & Securities Co Inc"
+	replace internal = 0 if wb_full_name == "Kane, Tracy" & job_title == "" & ///
+		caption == "US ex rel Kane, Tracy v Coastal Intnl Security Inc; CT Corp System"
 	replace job_title_at_fraud_firm = "" if wb_full_name == "Masters, Thomas R." & conm == "METROPOLITN MTG & SEC  -CL A" & ///
 		caption == "US ex rel Masters, Thomas R v Sandifur, Cantwell Paul Jr; Metropolitan Mortgage & Securities Co Inc"
 
@@ -231,10 +234,10 @@ use "$dropbox/master_dataset_bk.dta", clear
 			replace wb_raised_issue_internally = "" if wb_raised_issue_internally == "Incomplete court files"
 			replace wb_raised_issue_internally = "YES" if wb_raised_issue_internally == "YES-implicitly"
 
-	egen n_responses = rowtotal(response_coverup response_dismissal_or_retaliatio response_ignored response_int_inv response_suspension)
+	egen n_responses = rowtotal(response_coverup response_ignored response_int_inv)
 		replace response_unknown = 1 if n_responses == 0 & wb_raised_issue_internally == "YES"
 
-	egen n_retaliations = rowtotal(retaliation_demotion retaliation_fired retaliation_harassed retaliation_lawsuit retaliation_threat)
+	egen n_retaliations = rowtotal(retaliation_demotion retaliation_fired retaliation_harassed retaliation_lawsuit retaliation_threat retaliation_suspension)
 		replace retaliation_none = 1 if n_retaliations == 0 & wb_raised_issue_internally == "YES"
 *=============================================================================================
 	lab def genders 1 "Male" 0 "Female"
