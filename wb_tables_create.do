@@ -1017,8 +1017,8 @@ pause
 			drop tot pct
 		}
 		* end %s of Total // -------------------------------------------------------
-		order rowname obsI allegationsI allegationsI_pct_str settlementI settlementI_pct_str ///
-					obsE allegationsE allegationsE_pct_str settlementE settlementE_pct_str
+		order rowname obsI allegationsI allegationsI_pct_str ave_settlementI settlementI settlementI_pct_str ///
+					obsE allegationsE allegationsE_pct_str ave_settlementE settlementE settlementE_pct_str
 		replace rowname = "    " + rowname if ///
 			!inlist(rowname, "Gender", "Age", "Rank", "Function", "Repeat_Whistleblowers")
 		replace rowname = subinstr(rowname, "_", " ", .)
@@ -1031,7 +1031,7 @@ pause
 		foreach var of varlist *_pct_str *settlement? {
 			replace `var' = "" if `var' == "."
 		}
-		drop obsE subtable
+		drop subtable
 		export excel "$dropbox/draft_tables.xls", sheet("3.`panel'") sheetrep first(var)
 	restore
 
