@@ -343,6 +343,8 @@ replace wb_function = "Legal/Compliance" if inlist(wb_function, "Auditor", "Qual
 replace wb_function = "Finance/Accounting" if wb_function == "Billing"
 replace wb_function = "Operations" if inlist(wb_function, "Administrator", "HR", "IT", ///
 							"Marketing", "Sales", "Consultant", "Health Professional")
+replace wb_function = "No Job Title" if job_title == ""
+assert wb_function != "" if internal == 1
 
 /* Silenced because only need to do it sometimes
 preserve
@@ -352,4 +354,21 @@ restore
 */
 
 
-replace wb_raised_issue_internally = "NO" if inlist(wb_raised_issue_internally, ".", "", "NO ") // just one more time for good measure??
+replace wb_raised_issue_internally = "NO" if inlist(wb_raised_issue_internally, ".", "", "NO ", " ") // just one more time for good measure??
+
+#delimit ;
+replace reason_not_raised_internally = "No Information" if inlist(reason_not_raised, "Added observation",
+												"Added observation ", "", "no information");
+replace reason_not_raised_internally = "Fear of Retaliation" if strpos(lower(reason_not_raised), "fear of ")
+												| inlist(reason_not_raised, "Criticized by supervisor", "resisted demands",
+													"hostile work environment", "colleague's complaint was ignored");
+replace reason_not_raised_internally = "Supervisors Involved in Misconduct" if inlist(reason_not_raised,
+												"claims they already knew", "fraud was widespread company policy",
+												"superiors already knew", "Direct supervisor is defendant",
+												"conducted informal audit");
+replace reason_not_raised_internally = "External Parties Already Knew" if inlist(reason_not_raised, "talked to press",
+												"OIG investigate before WB", "Support the other relator");
+replace reason_not_raised_internally = "" if internal != 1 | wb_raised_issue_internally == "YES";
+#delimit cr
+fre wb_raised_issue_internally
+fre reason_not_raised
