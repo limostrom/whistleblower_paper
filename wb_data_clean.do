@@ -346,12 +346,6 @@ replace wb_function = "Operations" if inlist(wb_function, "Administrator", "HR",
 replace wb_function = "No Job Title" if wb_function == "" & job_title == ""
 assert wb_function != "" if internal == 1
 
-/* Silenced because only need to do it sometimes
-preserve
-	keep if gvkey != .
-	save "$dropbox/wb_cases_public.dta", replace
-restore
-*/
 drop response_dismissal_or_retaliatio response_suspension
 
 *Making sure people who accused multiple firms within the same lawsuit are only in there once
@@ -367,6 +361,10 @@ duplicates tag caption wb_full_name, gen(dup)
 	tab dup internal
 	drop if dup == 1 & conm == ""
 	drop dup
+
+replace ext_auditor = 0 if ext_auditor == 1 & gov == 1 & internal == 1 // contacted DMH (gov) first
+
+replace fyear = year(received_date) if fyear == .
 
 
 *Naming raised internally consistently
@@ -388,3 +386,11 @@ replace reason_not_raised_internally = "" if internal != 1 | wb_raised_issue_int
 #delimit cr
 fre wb_raised_issue_internally
 fre reason_not_raised
+
+
+/*Silenced because only need to do it sometimes
+preserve
+	keep if gvkey != .
+	save "$dropbox/wb_cases_public.dta", replace
+restore
+*/
