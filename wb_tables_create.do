@@ -16,10 +16,10 @@ local run_1A 0
 local run_1B 0
 local run_1C 0
 local run_1D 0
-local run_2 0
+local run_2 1
 local run_3A 0
 local run_3B 0
-local run_3CD 1
+local run_3CD 0
 local run_4A 0
 local run_4BC 0
 local run_5 0
@@ -193,9 +193,20 @@ preserve
 	tab fyear if tag_caption, matcell(C) matrow(rC)
 	mat C = (rC, C)
 	drop _all
-	svmat2 C, names(year cases)
+	svmat2 C, names(year pub_cases)
+	tempfile pub 
+	save `pub', replace 
+restore 
+preserve 
+	keep if internal == 1 
+	egen tag_caption = tag(caption) 
+	tab fyear if tag_caption, matcell(C) matrow(rC) 
+	mat C = (rC, C) 
+	drop _all 
+	svmat2 C, names(year all_cases) 
+	merge 1:1 year using `pub', nogen assert(1 3)
 		local leftcol "year"  // need to set these locals for add_total_row_and_pct_col_to_table.do
-		local tab_cols "cases" // the column you need to calculate "% of total" for
+		local tab_cols "all_cases pub_cases" // the column you need to calculate "% of total" for
 		include "$repo/add_total_row_and_pct_col_to_table.do"
 	export excel "$dropbox/draft_tables.xls", sheet("1.C") sheetrep first(var)
 restore
@@ -206,20 +217,33 @@ restore
 if `run_1D' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve
-keep if internal == 1 & gvkey != .
-	egen tag_caption = tag(caption)
-merge m:1 caption using "$dropbox/gov_agencies_from_qtrack.dta", nogen keep(1 3) keepus(primary_agency)
-include "$repo/replace_agency_names.do"
-collapse (sum) cases = tag_caption /*unique_firms = tag_gvkey unique_wbs = tag_wb_id*/ ///
-	, by(primary_agency) fast
-g byte nonmiss = primary_agency != "Unknown"
-drop if cases == 0
-gsort -nonmiss -cases
-	drop nonmiss
-	local leftcol "primary_agency" // need to set these locals for add_total_row_and_pct_col_to_table.do
-	local tab_cols "cases" // the column you need to calculate "% of total" for
-	include "$repo/add_total_row_and_pct_col_to_table.do"
-export excel "$dropbox/draft_tables.xls", sheet("1.D") sheetrep first(var)
+	keep if internal == 1 & gvkey != .
+		egen tag_caption = tag(caption)
+	merge m:1 caption using "$dropbox/gov_agencies_from_qtrack.dta", nogen keep(1 3) keepus(primary_agency)
+	include "$repo/replace_agency_names.do"
+	collapse (sum) pub_cases = tag_caption /*unique_firms = tag_gvkey unique_wbs = tag_wb_id*/ ///
+		, by(primary_agency) fast
+	g byte nonmiss = primary_agency != "Unknown"
+	assert pub_cases != 0
+	tempfile pub
+	save `pub', replace
+restore
+preserve
+	keep if internal == 1
+		egen tag_caption = tag(caption)
+	merge m:1 caption using "$dropbox/gov_agencies_from_qtrack.dta", nogen keep(1 3) keepus(primary_agency)
+	include "$repo/replace_agency_names.do"
+	collapse (sum) all_cases = tag_caption /*unique_firms = tag_gvkey unique_wbs = tag_wb_id*/ ///
+		, by(primary_agency) fast
+	g byte nonmiss = primary_agency != "Unknown"
+	assert all_cases != 0
+	merge 1:1 primary_agency using `pub', nogen
+	gsort -nonmiss -all_cases -pub_cases
+		drop nonmiss
+		local leftcol "primary_agency" // need to set these locals for add_total_row_and_pct_col_to_table.do
+		local tab_cols "all_cases pub_cases" // the column you need to calculate "% of total" for
+		include "$repo/add_total_row_and_pct_col_to_table.do"
+	export excel "$dropbox/draft_tables.xls", sheet("1.D") sheetrep first(var)
 restore
 } // end Panel D ---------------------------------------------------------------
 
@@ -402,6 +426,7 @@ restore
 preserve // -- now do right side of table, "Public Firms"
 	replace repeat_wb_all = 0 if  inlist(wb_full_name, "Doe, John", "Doe, Jane")
 	keep if gvkey != .
+	pause
 	collapse (count) allegations = case_id (sum) settlement (mean)ave_settlement=settlement, by(repeat_wb_all)
 	ren allegations allegationsP
 	ren settlement settlementP
@@ -494,6 +519,7 @@ mat list tab3A1 // just to view so it looks right
 
 * --- Number of Internal Channels --- *
 preserve // -- first do left side of table, "All Firms"
+	keep if internal == 1 & wb_raised_issue_internally == "YES"
 	replace n_reports = 3 if n_reports >= 3
 	collapse (count) allegations = case_id (mean) ave_settlementA = settlement (sum) settlement, by(n_reports)
 	egen obsA = total(allegations) // total observations
@@ -502,6 +528,7 @@ preserve // -- first do left side of table, "All Firms"
 	mkmat obsA allegationsA ave_settlementA settlementA, mat(all) rownames(n_reports)
 restore
 preserve // -- now do right side of table, "Public Firms"
+	keep if internal == 1 & wb_raised_issue_internally == "YES"
 	replace n_reports = 3 if n_reports >= 3
 	keep if gvkey != .
 	collapse (count) allegations = case_id (mean) ave_settlementP = settlement (sum) settlement, by(n_reports)
@@ -959,7 +986,7 @@ foreach panel in "C" "D" {
 		mat rownames tab3`panel'4 = "Function" "Operations" "Finance/Accounting" "Legal/Compliance" "No_Job_Title"
 	}
 	if "`panel'" == "D" {
-		mat rownames tab3`panel'4 = "Function" "Operations" "Finance/Accounting" "Legal/Compliance" "No_Job_Title"
+		mat rownames tab3`panel'4 = "Function" "Operations" "Legal/Compliance" "Finance/Accounting" "No_Job_Title"
 	}
 	mat list tab3`panel'4
 
