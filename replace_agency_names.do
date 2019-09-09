@@ -30,5 +30,10 @@ replace primary_agency = "Tennessee Valley Authority" if primary_agency == "TVA"
 replace primary_agency = "Office of Personnel Management" if primary_agency == "OPM"
 replace primary_agency = "Federal Deposit Insurance Corporation" if primary_agency == "FDIC"
 replace primary_agency = "Federal Reserve System" if primary_agency == "Fed Reserve Sys Bd"
+replace primary_agency = "Small Business Administration" if primary_agency == "SBA"
+replace primary_agency = "Nuclear Regulatory Commission" if primary_agency == "NRC"
+replace primary_agency = "National Foundation on the Arts and Humanities" if primary_agency == "Natl Found Arts/Hum"
+replace primary_agency = "Export-Import Bank of the US" if primary_agency == "Exp-Imp Bank of US"
+replace primary_agency = "Office of the President" if primary_agency == "Exec Ofc/President"
 replace primary_agency = "Unknown" if inlist(primary_agency, "", "Agcy Unk/Not Applic")
 
