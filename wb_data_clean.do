@@ -343,7 +343,7 @@ replace wb_function = "Legal/Compliance" if inlist(wb_function, "Auditor", "Qual
 replace wb_function = "Finance/Accounting" if wb_function == "Billing"
 replace wb_function = "Operations" if inlist(wb_function, "Administrator", "HR", "IT", ///
 							"Marketing", "Sales", "Consultant", "Health Professional")
-replace wb_function = "No Job Title" if job_title == ""
+replace wb_function = "No Job Title" if wb_function == "" & job_title == ""
 assert wb_function != "" if internal == 1
 
 /* Silenced because only need to do it sometimes
@@ -353,7 +353,22 @@ preserve
 restore
 */
 
+*Making sure people who accused multiple firms within the same lawsuit are only in there once
+duplicates tag caption wb_full_name, gen(dup)
+	tab dup internal
+	drop if dup == 1 & internal == 0
+	drop dup
+duplicates tag caption wb_full_name, gen(dup)
+	tab dup internal
+	drop if dup == 1 & fyear == .
+	drop dup
+duplicates tag caption wb_full_name, gen(dup)
+	tab dup internal
+	drop if dup == 1 & conm == ""
+	drop dup
 
+
+*Naming raised internally consistently
 replace wb_raised_issue_internally = "NO" if inlist(wb_raised_issue_internally, ".", "", "NO ", " ") // just one more time for good measure??
 
 #delimit ;
