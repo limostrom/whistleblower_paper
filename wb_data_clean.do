@@ -76,8 +76,6 @@ use "$dropbox/master_dataset_bk.dta", clear
 	ren *, lower
 	ren no_retaliation retaliation_none // so consistent with other similar variables
 	gen retaliation_quit = quit
-	ren response_suspension retaliation_suspension
-	drop response_dismissal_or_retaliatio
 
 	duplicates drop
 *=============================================================================================
@@ -218,6 +216,8 @@ use "$dropbox/master_dataset_bk.dta", clear
 	merge m:1 caption wb_full_name conm using "$dropbox/spreadsheets_for_merge/employee_wbs_two_firms_combined.dta", ///
 			update replace gen(merge_conm)
 
+	drop response_dismissal_or_retaliatio
+	ren response_suspension retaliation_suspension
 	replace job_title_at_fraud_firm = "" if internal == 0
 	replace wb_full_name = "Morris, Lanis G" if wb_full_name == "Randy L, Morris" & ///
 		caption == "US ex rel Little, Randy L; Morris, Lanis G v Eni Petroleum Co Inc; F/K/A Agip Petroleum Co et al"
@@ -352,6 +352,7 @@ preserve
 	save "$dropbox/wb_cases_public.dta", replace
 restore
 */
+drop response_dismissal_or_retaliatio response_suspension
 
 *Making sure people who accused multiple firms within the same lawsuit are only in there once
 duplicates tag caption wb_full_name, gen(dup)
