@@ -1279,8 +1279,8 @@ preserve
 		drop tot pct
 	}
 	* end %s of Total // -------------------------------------------------------
-	order rowname obsA allegationsA allegationsA_pct_str settlementA settlementA_pct_str ///
-				obsP allegationsP allegationsP_pct_str settlementP settlementP_pct_str
+	order rowname obsA allegationsA allegationsA_pct_str ave_settlementA settlementA settlementA_pct_str ///
+				obsP allegationsP allegationsP_pct_str ave_settlementP settlementP settlementP_pct_str
 	replace rowname = "    " + rowname if ///
 		!inlist(rowname, "Response_to_Allegation", "Retaliation_Against_WB")
 	replace rowname = subinstr(rowname, "_", " ", .)
@@ -1471,9 +1471,9 @@ foreach panel in "C" "D" { // --- These panels are nearly identical, just drop p
 			drop tot pct
 		}
 		* end %s of Total // -------------------------------------------------------
-		order rowname obsL allegationsL allegationsL_pct_str settlementL settlementL_pct_str ///
-					obsM allegationsM allegationsM_pct_str settlementM settlementM_pct_str ///
-					obsU allegationsU allegationsU_pct_str settlementU settlementU_pct_str
+		order rowname obsL allegationsL allegationsL_pct_str ave_settlementL settlementL settlementL_pct_str ///
+					obsM allegationsM allegationsM_pct_str ave_settlementM settlementM settlementM_pct_str ///
+					obsU allegationsU allegationsU_pct_str ave_settlementU settlementU settlementU_pct_str
 		replace rowname = "    " + rowname if ///
 			!inlist(rowname, "Response_to_Allegation", "Retaliation_Against_WB")
 		replace rowname = subinstr(rowname, "_", " ", .)
