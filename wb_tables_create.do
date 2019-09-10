@@ -12,17 +12,17 @@ set scheme s1color, perm
 pause off
 
 *---------------------------
-local run_1A 0
+local run_1A 1
 local run_1B 0
 local run_1C 0
 local run_1D 0
-local run_2 1
+local run_1E 1
+local run_2 0
 local run_3A 0
 local run_3B 0
 local run_3CD 0
 local run_4A 0
 local run_4BC 0
-local run_5 0
 local run_all 0
 *---------------------------
 global name dyu
@@ -117,24 +117,33 @@ foreach if_st in "if internal == 1" /* less external whistleblowers */ ///
 				local N`a': dis tag_`col'
 		restore
 	}
-
-	preserve // -- Counting unique firms ---
-		keep `if_st'
-			keep caption
-			duplicates drop
-		*Split caption to pull out all firm names & count unique firms
-		split caption, gen(capsplit) p(" v ") // pull list of defendants out of caption
-			gen def_pos = strpos(capsplit1, " v. ") + 4 if capsplit2 == ""
-			replace capsplit2 = substr(capsplit1, def_pos, .) if def_pos > 4 & def_pos != . // i.e. strpos > 0
-		split capsplit2, gen(defendant) p("; ") // separate multiple defendants
-		reshape long defendant, i(caption) j(j)
-			drop if defendant == ""
-		replace defendant = upper(defendant) // in case upper/lower case differences
-		drop if strpos(defendant, ", ") > 0 // probably a person
-		egen tag_firm = tag(defendant)
-		collapse (sum) tag_firm
-			local N2: dis tag_firm
-	restore // -----------------------------
+	if `i' == 5 {
+		preserve // -- Counting unique firms ---
+			keep `if_st'
+				keep caption
+				duplicates drop
+			*Split caption to pull out all firm names & count unique firms
+			split caption, gen(capsplit) p(" v ") // pull list of defendants out of caption
+				gen def_pos = strpos(capsplit1, " v. ") + 4 if capsplit2 == ""
+				replace capsplit2 = substr(capsplit1, def_pos, .) if def_pos > 4 & def_pos != . // i.e. strpos > 0
+			split capsplit2, gen(defendant) p("; ") // separate multiple defendants
+			reshape long defendant, i(caption) j(j)
+				drop if defendant == ""
+			replace defendant = upper(defendant) // in case upper/lower case differences
+			drop if strpos(defendant, ", ") > 0 // probably a person
+			egen tag_firm = tag(defendant)
+			collapse (sum) tag_firm
+				local N2: dis tag_firm
+		restore // -----------------------------
+	}
+	if `i' == 7 {
+		preserve
+			keep `if_st'
+			egen tag_gvkey = tag(gvkey)
+			collapse (sum) tag_gvkey
+				local N2: dis tag_gvkey
+		restore
+	}
 
 	mat A = (A \ 0, 0, 0, 0) // add empty row for "sample used for Tables X-Y" to be filled in
 	local i_2 = `i' - 2 // row number 2 rows up
@@ -246,6 +255,35 @@ preserve
 	export excel "$dropbox/draft_tables.xls", sheet("1.D") sheetrep first(var)
 restore
 } // end Panel D ---------------------------------------------------------------
+
+*------------------------------------
+* Panel E
+if `run_1E' == 1 | `run_all' == 1 {
+*------------------------------------
+include "$repo/FamaFrench12.do"
+
+egen tag_firm = tag(gvkey)
+
+tab famafrench12 if tag_firm, matcell(m5c2) matrow(m5c1)
+mat m5 = (m5c1, m5c2)
+	mat list m5
+
+preserve
+drop _all
+svmat2 m5, names(industry allegations)
+	assert industry != 8
+	set obs 12
+	replace industry = 8 if industry == .
+	replace allegations = 0 if allegations == .
+	sort industry
+
+	local leftcol "industry" // need to set these locals for add_total_row_and_pct_col_to_table.do
+	local tab_cols "allegations" // the columns you need to calculate "% of total" for
+	include "$repo/add_total_row_and_pct_col_to_table.do"
+
+export excel "$dropbox/draft_tables.xls", sheet("1E") sheetrep first(var)
+restore
+} // end Panel E ---------------------------------------------------------------
 
 keep if internal == 1
 	gen missing_job_title = job_title == ""
@@ -1377,27 +1415,4 @@ foreach panel in "B" "C" { // --- These panels are nearly identical, just drop p
 } // end Panels B & C ----------------------------------------------------------
 
 * ================================== TABLE 5 ================================== *
-if `run_5' == 1 | `run_all' == 1 {
-*------------------------------------
-include "$repo/FamaFrench12.do"
 
-tab famafrench12, matcell(m5c2) matrow(m5c1)
-mat m5 = (m5c1, m5c2)
-	mat list m5
-
-preserve
-drop _all
-svmat2 m5, names(industry allegations)
-	assert industry != 8
-	set obs 12
-	replace industry = 8 if industry == .
-	replace allegations = 0 if allegations == .
-	sort industry
-
-	local leftcol "industry" // need to set these locals for add_total_row_and_pct_col_to_table.do
-	local tab_cols "allegations" // the columns you need to calculate "% of total" for
-	include "$repo/add_total_row_and_pct_col_to_table.do"
-
-export excel "$dropbox/draft_tables.xls", sheet("5") sheetrep first(var)
-restore
-}
