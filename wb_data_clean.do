@@ -390,7 +390,7 @@ fre reason_not_raised
 
 /*Silenced because only need to do it sometimes
 preserve
-	keep if gvkey != .
+	keep if gvkey != . & internal == 1
 	save "$dropbox/wb_cases_public.dta", replace
 restore
 */
