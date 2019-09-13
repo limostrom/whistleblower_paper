@@ -16,11 +16,11 @@ local run_1A 0
 local run_1B 0
 local run_1C 0
 local run_1D 0
-local run_1E 0
+local run_1E 1
 local run_2 0
-local run_3A 1
-local run_3B 1
-local run_3CD 1
+local run_3A 0
+local run_3B 0
+local run_3CD 0
 local run_4A 0
 local run_4B 0
 local run_4CDE 0
@@ -177,18 +177,22 @@ restore
 if `run_1B' == 1 | `run_all' == 1 {
 *------------------------------------
 preserve
-	codebook wb_id 
-	collapse (count) cases = case_id (mean) avg_settlement = settlement ///
+	codebook wb_id
+	collapse (count) cases = case_id (mean) settled avg_settlement = settlement ///
 			 (sum) tot_settlements = settlement, by(wb_type) fast
 	gsort -cases
 		local leftcol "wb_type" // need to set these locals for add_total_row_and_pct_col_to_table.do
-		local tab_cols "cases tot_settlements" // the columns you need to calculate "% of total" for
+		local tab_cols "cases" // the columns you need to calculate "% of total" for
 		include "$repo/add_total_row_and_pct_col_to_table.do"
 		tostring avg_settlement tot_settlements, replace force format(%9.1f)
+		replace settled = settled * 100
+		tostring settled, replace force format(%9.1f)
 		replace avg_settlement = "$" + avg_settlement
 			replace avg_settlement = "" if avg_settlement == "$."
 		replace tot_settlements = "$" + tot_settlements
-		order wb_type cases cases_pct_str avg_settlement tot_settlements tot_settlements_pct_str
+		replace settled = settled + "%"
+			replace settled = "" if settled == ".%"
+		order wb_type cases cases_pct_str settled avg_settlement tot_settlements
 	export excel "$dropbox/draft_tables.xls", sheet("1.B") sheetrep first(var)
 restore
 } // end Panel B ---------------------------------------------------------------
@@ -262,14 +266,16 @@ restore
 if `run_1E' == 1 | `run_all' == 1 {
 *------------------------------------
 include "$repo/FamaFrench12.do"
+include "$repo/assign_missing_famafrench.do"
 
 egen tag_firm = tag(gvkey)
 
-tab famafrench12 if tag_firm, matcell(m5c2) matrow(m5c1)
+preserve
+bys gvkey: ereplace famafrench12 = mode(famafrench12)
+tab famafrench12 if tag_firm & internal == 1, matcell(m5c2) matrow(m5c1)
 mat m5 = (m5c1, m5c2)
 	mat list m5
 
-preserve
 drop _all
 svmat2 m5, names(industry allegations)
 	assert industry != 8
