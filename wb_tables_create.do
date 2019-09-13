@@ -337,55 +337,6 @@ mat tab2A = (all[1,1], ., ., ., ., public[1,1], ., ., ., ., 1 \ /* put total non
 mat rownames tab2A = "Gender" "Female" "Male"
 mat list tab2A // just to view so it looks right
 
-* --- Age --- *
-/*** only one observation from this subset has age filled in so I'm skipping this
-preserve // -- first do left side of table, "All Firms"
-	collapse (count) allegations = case_id (sum) settlement, by(wb_age_bin)
-		drop if wb_age_bin == .
-	ren wb_age_bin age_bin_int
-	decode age_bin_int, gen(wb_age_bin) // need string for row names
-	egen obsA = total(allegations) // total observations not missing gender
-	ren allegations allegationsA
-	ren settlement settlementA
-	sort wb_age_bin
-	mkmat obsA allegationsA settlementA, mat(all) rownames(wb_age_bin)
-restore
-preserve // -- now do right side of table, "Public Firms"
-	keep if gvkey != .
-	collapse (count) allegations = case_id (sum) settlement, by(wb_age_bin)
-		drop if wb_age_bin == .
-	ren wb_age_bin age_bin_int
-	decode age_bin_int, gen(wb_age_bin) // need string to check if all age ranges are covered
-		* make sure there are observations for each age range
-		set obs 7
-		levelsof wb_age_bin, local(age_bins) s(",")
-		foreach range in "18-19" "20-29" "30-39" "40-49" "50-59" "60-69" "70-79" {
-			if !inlist("`range'", `age_bins') {	// if no obs for that age bin	
-				bys wb_age_bin: replace wb_age_bin = "`range'" if wb_age_bin == "" & _n == 1
-				// add an empty row for that age bin so the matrices line up correctly
-			}
-		}
-	ren allegations allegationsP
-		replace allegationsP = 0 if allegationsP == .
-	ren settlement settlementP
-		replace settlementP = 0 if settlementP == .
-	egen obsP = total(allegationsP)
-	sort wb_age_bin
-	mkmat obsP allegationsP settlementP, mat(public) // don't need row names because
-								// this matrix is being appended to the right of the all matrix
-restore
-*store local string to input other all[] and public[] rows into the tab2 matrix
-	local other_rows ""
-	forval x=1/7 {
-		local other_rows "`other_rows' ., all[`x',2..3], ., public[`x',2..3], 2" /* leave obs empty, fill in others */
-		if `x' < 7 local other_rows "`other_rows' \ " // add line break if not end
-	}
-mat tab2B = (all[1,1], ., ., public[1,1], ., ., 2 \ /* put total non-missing obs on first line only */ ///
-			`other_rows')
-mat list tab2B
-mat rownames tab2B = "Age" "18-19" "20-29" "30-39" "40-49" "50-59" "60-69" "70-79"
-*/
-
 * --- Management Rank --- *
 preserve // -- first do right side of table, "Public Firms"
 	keep if gvkey != .
@@ -954,66 +905,6 @@ foreach panel in "C" "D" {
 	mat rownames tab3`panel'1 = "Gender" "Female" "Male"
 	mat list tab3`panel'1 // just to view so it looks right
 
-* --- Age --- *
-/*	**** only one observation from this subset has age filled in so I'm skipping this
-	preserve // -- first do left side of table, "Internal"
-		keep if wb_raised_issue_internally == "YES"
-		collapse (count) allegations = case_id (sum) settlement, by(wb_age_bin)
-			drop if wb_age_bin == .
-		ren wb_age_bin age_bin_int
-		decode age_bin_int, gen(wb_age_bin) // need string for row names
-			* make sure there are observations for each age range
-			set obs 7
-			levelsof wb_age_bin, local(age_bins) s(",")
-			foreach range in "18-19" "20-29" "30-39" "40-49" "50-59" "60-69" "70-79" {
-				if !inlist("`range'", `age_bins') {	// if no obs for that age bin	
-					bys wb_age_bin: replace wb_age_bin = "`range'" if wb_age_bin == "" & _n == 1
-					// add an empty row for that age bin so the matrices line up correctly
-				}
-			}
-		egen obsI = total(allegations) // total observations not missing gender
-		ren allegations allegationsI
-		ren settlement settlementI
-		sort wb_age_bin
-		mkmat obsI allegationsI settlementI, mat(int) rownames(wb_age_bin)
-	restore
-	preserve // -- now do right side of table, "External"
-		keep if wb_raised_issue_internally == "NO"
-		collapse (count) allegations = case_id (sum) settlement, by(wb_age_bin)
-			drop if wb_age_bin == .
-		ren wb_age_bin age_bin_int
-		decode age_bin_int, gen(wb_age_bin) // need string to check if all age ranges are covered
-			* make sure there are observations for each age range
-			set obs 7
-			levelsof wb_age_bin, local(age_bins) s(",")
-			foreach range in "18-19" "20-29" "30-39" "40-49" "50-59" "60-69" "70-79" {
-				if !inlist("`range'", `age_bins') {	// if no obs for that age bin	
-					bys wb_age_bin: replace wb_age_bin = "`range'" if wb_age_bin == "" & _n == 1
-					// add an empty row for that age bin so the matrices line up correctly
-				}
-			}
-		ren allegations allegationsE
-			replace allegationsE = 0 if allegationsE == .
-		ren settlement settlementE
-			replace settlementE = 0 if settlementE == .
-		egen obsE = total(allegationsE)
-		sort wb_age_bin
-		br
-		*pause
-		mkmat obsE allegationsE settlementE, mat(ext) // don't need row names because
-									// this matrix is being appended to the right of the all matrix
-	restore
-	*store local string to input other all[] and public[] rows into the tab2 matrix
-		local other_rows ""
-		forval x=1/7 {
-			local other_rows "`other_rows' ., int[`x',2..3], ., ext[`x',2..3], 2" /* leave obs empty, fill in others */
-			if `x' < 7 local other_rows "`other_rows' \ " // add line break if not end
-		}
-	mat tab3`panel'2 = (int[1,1], ., ., ext[1,1], ., ., 2 \ /* put total non-missing obs on first line only */ ///
-				`other_rows')
-	mat list tab3`panel'2
-	mat rownames tab3`panel'2 = "Age" "18-19" "20-29" "30-39" "40-49" "50-59" "60-69" "70-79"
-*/
 * --- Management Rank --- *
 	preserve // -- first do right side of table, "External"
 		if "`panel'" == "D" drop if gvkey == .
