@@ -65,8 +65,24 @@ use "$dropbox/master_dataset_bk.dta", clear
 		gen popsrc = "D" if gvkey != .
 		gen consol = "C" if gvkey != .
 
-	merge m:1 gvkey fyear indfmt datafmt popsrc consol using "Dropbox/Compustat_none_missing_fyear.dta", nogen keep(1 3) keepus(sic)
-		destring sic, replace
+preserve // --- Compustat Merge -----------------------------------------
+	use "Dropbox/Compustat.dta", clear
+	drop if fyear == .
+	destring gvkey, replace
+	tempfile comp_nomiss_fyear
+	save `comp_nomiss_fyear', replace
+
+	bys gvkey: egen max_year = max(fyear)
+	keep if fyear == max_year
+		isid gvkey  indfmt datafmt popsrc consol
+	tempfile comp_latest_year
+	save `comp_latest_year', replace
+restore 
+
+	merge m:1 gvkey fyear indfmt datafmt popsrc consol using `comp_nomiss_fyear', nogen keep(1 3) keepus(sic)
+	merge m:1 gvkey indfmt datafmt popsrc consol using `comp_latest_year', nogen update keep(1 3 4) keepus(sic)
+// ----------------------------------------------------------------------
+	destring sic, replace
 
 	drop public_firm
 	gen public_firm = (gvkey != .)
