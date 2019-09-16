@@ -276,7 +276,7 @@ restore
 	replace job_title_at_fraud_firm = job_title_at_fraud_firm + "; Government Program Auditor" ///
 		if case_id == 2586 & wb_full_name == "Parikh, Girish"
 
-merge m:1 caption using "$dropbox/total_settlements_from_qtrack.dta", nogen keepus(total_federal_recovery) keep(1 3)
+merge m:1 caption using "$dropbox/total_settlements_from_qtrack.dta", nogen keepus(total_federal_recovery settlement_judgment_date) keep(1 3)
 	ren total_federal_recovery settlement
 	gen settled = settlement != . & settlement > 0
 	replace settlement = settlement/1000000
@@ -310,6 +310,20 @@ tab job_title if mgmt_class == "Middle";
 tab job_title if mgmt_class == "Lower";
 */
 
+*correct job functions of investigator
+	replace wb_description_external = "Government Investigator" if case_id == 5603
+	replace wb_description_external = "Unspecified/Miscellaneous" if case_id == 500 & wb_full_name == "Roberts, Neal"
+	replace wb_description_external = "Private Investigator" if case_id == 5624 & wb_full_name == "Dunlap, William"
+	replace wb_description_external = "Federal Employee" if case_id == 749 & wb_full_name == "Oberg, Jon H."
+	replace wb_description_external = "Bankruptcy Trustee" if case_id == 537 & wb_full_name == "Koch, Dr. Ludwig"
+	replace wb_description_external = "Government Senior Investigator" if case_id == 701
+	replace wb_description_external = "Private Investigator" if case_id == 551 & wb_full_name == "Burns, John"
+	replace wb_description_external = "Private Investigator" if case_id == 288 & wb_full_name == "Fairbrother, Faith"
+	replace wb_description_external = "Unspecified/Miscellaneous" if case_id == 595 & wb_full_name == "Crennen, Christopher"
+	replace wb_description_external = "Unspecified" if case_id == 151 & wb_full_name == "Brian, Danielle"
+	replace wb_description_external = "Unspecified" if case_id == 151 & wb_full_name == "Brock, Leonard"
+
+
 
 gen wb_type = "(Former) Employee" if internal == 1;
 replace wb_type = "External Auditor" if (strpos(lower(wb_description_external), "auditor") > 0 | ext_auditor == 1) & internal == 0;
@@ -330,7 +344,7 @@ replace wb_type = "Contractor" if strpos(lower(wb_description_external), "contra
 replace wb_type = "Government" if (inlist(wb_description_external, "Behalf of Usa", "Employed With Fbi", "Usda Worker")
 								| strpos(lower(wb_description_external), "government") > 0)
 								& internal == 0;
-replace wb_type = "Investigator" if (strpos(lower(wb_description_external), "investigator") > 0
+replace wb_type = "Investigator" if (strpos(lower(wb_description_external), "private investigator") > 0
 								| strpos(lower(wb_description_external), "investegator") > 0)
 								& internal == 0;
 replace wb_type = "Stockholder" if wb_description_external == "Stockholder";
@@ -412,3 +426,5 @@ restore
 */
 
 merge 1:1 caption wb_full_name using "$dropbox/wb_public_ma", nogen keepus(at roacurrent lev) keep(1 3)
+=======
+

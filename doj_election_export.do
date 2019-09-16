@@ -16,6 +16,6 @@ replace caption = "US ex rel Richardson, Daniel C v Bristol-Myers Squibb" if cap
 
 replace caption = "US; States of California; Delaware; Florida et al ex rel Doe, Jane& Mary v PDL Biopharma Inc et al" if caption == "US; States of California; Delaware; Florida et al ex rel Doe, John & Mary v PDL Biopharma Inc et al"
 
-replace caption = "US ex rel Edwin Dunteman v Baudendistel, Lawrence MD; Tenet Healthsystem Sl-HLC Inc; St. Louis University" if caption == "US Ex Rel Dunteman, Edwin v Tenet Hlth Sys Sl-Hlc Inc DBA St Louis Univ Hosp"
+replace caption = "US ex rel Edwin Dunteman v Baudendistel, Lawrence MD; Tenet Healthsystem Sl-HLC Inc; St. Louis University" if wb_full_name == "Dunteman, Edwin"
 
 save "C:\Users\dyu\Dropbox\Violation paper\whistleblower paper\doj_election_decision.dta", replace
