@@ -12,11 +12,11 @@ set scheme s1color, perm
 pause off
 
 *---------------------------
-local run_1A 0
+local run_1A 1
 local run_1B 0
 local run_1C 0
 local run_1D 0
-local run_1E 1
+local run_1E 0
 local run_2 0
 local run_3A 0
 local run_3B 0
@@ -105,7 +105,8 @@ mat A = (A \ `N_caption', `N_firms', `N_wb_id', `N_alleg_id')
 	
 local i = 5 // going to refer to row 6
 foreach if_st in "if internal == 1" /* less external whistleblowers */ ///
-				 "if internal == 1 & gvkey != ." /* less private firms */ {
+				 "if internal == 1 & gvkey != ." /* less private firms */ ///
+				 "if internal == 1 & gvkey != . & at != . & roacurrent != . & lev != ." /* less missing from Compustat*/  {
 	foreach col in caption wb_id alleg_id { 
 		if "`col'" == "caption" local a = 1 // column numbers for matrix
 		if "`col'" == "wb_id" local a = 3
@@ -137,7 +138,7 @@ foreach if_st in "if internal == 1" /* less external whistleblowers */ ///
 				local N2: dis tag_firm
 		restore // -----------------------------
 	}
-	if `i' == 7 {
+	if inlist(`i',7,9) {
 		preserve
 			keep `if_st'
 			egen tag_gvkey = tag(gvkey)
@@ -165,7 +166,7 @@ preserve
 	svmat2 A, names(cases unique_firms unique_wbs unique_allegations) // load matrix A in as a dataset
 		foreach var in cases unique_firms unique_wbs unique_allegations {
 			tostring `var', force replace
-			replace `var' = "(" + `var' + ")" if _n == 2 | _n == 4 | _n == 6
+			replace `var' = "(" + `var' + ")" if _n == 2 | _n == 4 | _n == 6 | _n == 8
 		}
 		replace unique_firms = "" if inlist(unique_firms, ".", "(.)")
 	export excel "$dropbox/draft_tables.xls", sheet("1.A") sheetrep first(var)
