@@ -19,11 +19,11 @@ local run_1D 0
 local run_1E 0
 local run_2 0
 local run_3A 0
-local run_3B 0
-local run_3CD 1
+local run_3B 1
+local run_3CD 0
 local run_4A 0
-local run_4B 0
-local run_4CDE 0
+local run_4BC 0
+local run_4DEF 0
 local run_all 0
 *---------------------------
 global name dyu
@@ -662,173 +662,190 @@ restore
 if `run_3B' == 1 | `run_all' == 1 {
 *------------------------------------
 * --- Internal Reporting Channel --- *
-egen non_audit_reports = rowtotal(billing colleague direct_supervisor hotline hr legalcompliance relevantdirector topmanager)
-replace int_auditor = auditor if auditor > 0 & wb_raised_issue_internally == "YES" ///
-	& non_audit_reports == 0 & int_auditor == .
-	/* Initially ambiguous internal/external audit cases: 2586, 674*/
-	replace int_auditor = auditor if wb_raised_issue_internally == "YES" ///
-		& non_audit_reports > 0 & inlist(case_id, 2586, 674) & int_auditor
-	drop non_audit_reports
-replace ext_auditor = auditor if wb_raised_issue_internally == "NO" & ext_auditor == .
-replace int_auditor = 0 if int_auditor == .
-replace ext_auditor = 0 if ext_auditor == .
-	/* Case file missing; can't check internal or external auditor */
-	drop if caption == "US ex rel Tompkins, Jimmy M v Adham, Abdullah N; Lamarre, Louise; Olusola, Benedict O et al"
+	foreach subpanel in "a" "b"{  //a is full sample, b is public-firm only
+		local int_channels "int_auditor billing colleague direct_supervisor hotline hr legalcompliance relevantdirector topmanager"
+		local ext_channels "ext_auditor gov ext_to_courts"
+		local ave_stlmts_int ""
+		foreach channel of local int_channels {
+			local ave_stlmts_int "`ave_stlmts_int' ave_stlmt_`channel' = stlmt_`channel'"
+		}
+		local ave_stlmts_ext ""
+		foreach channel of local ext_channels {
+			local ave_stlmts_ext "`ave_stlmts_ext' ave_stlmt_`channel' = stlmt_`channel'"
+		}
+		foreach var in `int_channels' `ext_channels' {
+			gen stld_`var' = settled * (`var' > 0)
+		}
 
-gen ext_to_courts = (ext_auditor == 0 & gov == 0)
+	preserve // -- first do right side of table, "Settled"
+		if "`subpanel'" == "b" keep if gvkey != .
+		keep if settled == 1
+		foreach var in `int_channels' {
+			gen stlmt_`var' = settlement * (`var' > 0)
+		}
+		collapse (sum) `int_channels' stlmt* (mean) `ave_stlmts_int', fast
+		foreach var in `int_channels' {
+			ren `var' n`var' // for reshape
+		}
+		gen i = _n
+		reshape long n ave_stlmt_ stlmt_, i(i) j(channel) string
+		egen obsS = total(n) // total observations not missing
+		ren n allegationsS
+		ren stlmt_ settlementS
+		ren ave_stlmt_ ave_settlementS
+		tempfile settled3B`subpanel'1
+		save `settled3B`subpanel'1', replace
+	restore
 
-local int_channels "int_auditor billing colleague direct_supervisor hotline hr legalcompliance relevantdirector topmanager"
-local ext_channels "ext_auditor gov ext_to_courts"
-
-local ave_stlmts_int ""
-foreach channel of local int_channels {
-	local ave_stlmts_int "`ave_stlmts_int' ave_stlmt_`channel' = stlmt_`channel'"
-}
-local ave_stlmts_ext ""
-foreach channel of local ext_channels {
-	local ave_stlmts_ext "`ave_stlmts_ext' ave_stlmt_`channel' = stlmt_`channel'"
-}
-
-foreach var in `int_channels' `ext_channels' {
-	gen stlmt_`var' = settlement * (`var' > 0)
-	gen stld_`var' = settled * (`var' > 0)
-}
-preserve // -- first do right side of table, "Public Firms"
-	keep if gvkey != .
-	collapse (sum) `int_channels' stlmt* (mean)  stld_* `ave_stlmts_int', fast
-		drop stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor
-		drop stld_gov stld_ext_to_courts stld_ext_auditor
-	foreach var in `int_channels' {
-		ren `var' n`var' // for reshape
-	}
-	gen i = _n
-	reshape long n  stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
-	egen obsP = total(n) // total observations not missing
-	ren n allegationsP
-	ren stlmt_ settlementP
-	ren stld_ settledP
-		replace settledP = settledP * 100
-	ren ave_stlmt_ ave_settlementP
-	tempfile public3B1
-	save `public3B1', replace
-restore
-preserve // -- now do left side of table, "All Firms"
-	collapse (sum) `int_channels' stlmt* (mean) stld_* `ave_stlmts_int', fast
-		drop stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor
-	foreach var in `int_channels' {
-		ren `var' n`var' // for reshape
-	}
-	gen i = _n
-	reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
-	gsort -n
-	egen obsA = total(n)
-	ren n allegationsA
-	ren stlmt_ settlementA
-	ren stld_ settledA
+	preserve // -- now do left side of table, "Not settled"
+		if "`subpanel'" == "b" keep if gvkey != .
+		keep if settled == 0
+		foreach var in `int_channels'{
+			gen stlmt_`var' = settlement * (`var' > 0)
+		}
+		collapse (sum) `int_channels', fast
+		foreach var in `int_channels' {
+			ren `var' n`var' // for reshape
+		}
+		gen i = _n
+		reshape long n, i(i) j(channel) string
+		gsort -n
+		egen obsNS = total(n)
+		ren n allegationsNS
+		merge 1:1 channel using `settled3B`subpanel'1', nogen
+		gsort -allegationsNS -allegationsS
+			br
+			*pause
+		tempfile all3B`subpanel'1
+		save `all3B`subpanel'1', replace
+	restore
+	preserve
+		if "`subpanel'" == "b" keep if gvkey != .
+		collapse (sum) `int_channels' (mean) stld_*, fast
+		foreach var in `int_channels' {
+			ren `var' n`var' // for reshape
+		}
+		gen i = _n
+		reshape long n stld_, i(i) j(channel) string
+		gsort -n 
+		egen obsA = total(n)
+		ren stld_ settledA
 		replace settledA = settledA * 100
-	ren ave_stlmt_ ave_settlementA
-	merge 1:1 channel using `public3B1', nogen
-	gsort -allegationsA -allegationsP
-		br
-		pause
-	mkmat obsA allegationsA settledA ave_settlementA settlementA ///
-			obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(channel)
-restore
+		merge 1:1 channel using `all3B`subpanel'1', nogen 
+		gsort -allegationsNS -allegationsS
+		mkmat obsA settledA obsNS allegationsNS obsS allegationsS ave_settlementS settlementS, mat(all) rownames(channel)
+	restore
 
 *store local string to input other all[] rows into the tab3 matrix
 	local other_rows ""
 	forval x=1/9 {
-		local other_rows "`other_rows' ., all[`x',2..5], .,all[`x',7..10], 1" /* leave obs empty, fill in others */
+		local other_rows "`other_rows' ., all[`x',2], ., all[`x',4], .,all[`x',6..8], 1" /* leave obs empty, fill in others */
 		if `x' < 9 local other_rows "`other_rows' \ " // add line break if not end
 	}
-mat tab3B1 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
+	mat tab3B`subpanel'1 = (all[1,1], ., all[1,3], ., all[1,5], ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
+	mat list tab3B`subpanel'1
 
-mat rownames tab3B1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
+	mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
 				"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Billing" ///
 				"Hotline" "Internal_Auditor"
-mat list tab3B1
-pause
+	mat list tab3B`subpanel'1
+*pause
 * --- External Reporting Channel --- *
-forval section = 2/3 {
-	preserve // -- first do right side of table, "Public Firms"
-		keep if gvkey != .
-		
-		if `section' == 2 keep if wb_raised_issue_internally == "YES"
-		if `section' == 3 keep if wb_raised_issue_internally == "NO"
-
-		collapse (sum) `ext_channels' stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor ///
-				 (mean) stld_gov stld_ext_to_courts stld_ext_auditor `ave_stlmts_ext', fast
-		foreach var in `ext_channels' {
-			ren `var' n`var' // for reshape
-		}
-		gen i = _n
-		reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
-		egen obsP = total(n) // total observations not missing
-		ren n allegationsP
-		ren stlmt_ settlementP
-		ren ave_stlmt_ ave_settlementP
-		ren stld_ settledP
-			replace settledP = settledP * 100
-		tempfile public3B`section'
-		save `public3B`section'', replace
-	restore
-	preserve // -- now do left side of table, "All Firms"
-		if `section' == 2 keep if wb_raised_issue_internally == "YES"
-		if `section' == 3 keep if wb_raised_issue_internally == "NO"
-
-		collapse (sum) `ext_channels' stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor ///
-				 (mean) stld_gov stld_ext_to_courts stld_ext_auditor `ave_stlmts_ext', fast
-		foreach var in `ext_channels' {
-			ren `var' n`var' // for reshape
-		}
-		gen i = _n
-		reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
-		gsort -n
-		egen obsA = total(n)
-		ren n allegationsA
-		ren stlmt_ settlementA
-		ren stld_ settledA
+	forval section = 2/3 {
+		preserve // -- first do right side of table, "Settled"
+			if "`subpanel'" == "b" keep if gvkey != .
+			keep if settled == 1
+			foreach var in `ext_channels' {
+				gen stlmt_`var' = settlement * (`var' > 0)
+			}
+			if `section' == 2 keep if wb_raised_issue_internally == "YES"
+			if `section' == 3 keep if wb_raised_issue_internally == "NO"
+			collapse (sum) `ext_channels' stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor ///
+					 (mean) `ave_stlmts_ext', fast
+			foreach var in `ext_channels' {
+				ren `var' n`var' // for reshape
+			}
+			gen i = _n
+			reshape long n ave_stlmt_ stlmt_, i(i) j(channel) string
+			egen obsS = total(n) // total observations not missing
+			ren n allegationsS
+			ren stlmt_ settlementS
+			ren ave_stlmt_ ave_settlementS
+			tempfile settled3B`subpanel'`section'
+			save `settled3B`subpanel'`section'', replace
+		restore
+		preserve // -- now do left side of table, "Not settled"
+			if "`subpanel'" == "b" keep if gvkey != .
+			keep if settled == 0
+			if `section' == 2 keep if wb_raised_issue_internally == "YES"
+			if `section' == 3 keep if wb_raised_issue_internally == "NO"
+			collapse (sum) `ext_channels', fast
+			foreach var in `ext_channels' {
+				ren `var' n`var' // for reshape
+			}
+			gen i = _n
+			reshape long n, i(i) j(channel) string
+			gsort -n
+			egen obsNS = total(n)
+			ren n allegationsNS
+			merge 1:1 channel using `settled3B`subpanel'`section'', nogen
+			gsort -allegationsNS -allegationsS
+				br
+				*pause
+			tempfile all3B`subpanel'`section'
+			save `all3B`subpanel'`section'', replace 
+		restore
+		preserve // Now do total observations and % settled 
+			if "`subpanel'" == "b" keep if gvkey != .
+			if `section' == 2 keep if wb_raised_issue_internally == "YES"
+			if `section' == 3 keep if wb_raised_issue_internally == "NO"
+			collapse (sum) `ext_channels' (mean) stld_*, fast
+			foreach var in `ext_channels' {
+				ren `var' n`var' // for reshape
+			}
+			gen i = _n
+			reshape long n stld_, i(i) j(channel) string
+			gsort -n 
+			egen obsA = total(n)
+			ren stld_ settledA
 			replace settledA = settledA * 100
-		ren ave_stlmt_ ave_settlementA
-		merge 1:1 channel using `public3B`section'', nogen
-		gsort -allegationsA -allegationsP
-			br
-			*pause
-		mkmat obsA allegationsA settledA ave_settlementA settlementA ///
-				obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(channel)
-	restore
+			merge 1:1 channel using `all3B`subpanel'`section'', nogen 
+			gsort -allegationsNS -allegationsS
+			mkmat obsA settledA obsNS allegationsNS obsS allegationsS ave_settlementS settlementS, mat(all) rownames(channel)
+		restore
 
-	*store local string to input other all[] rows into the tab3 matrix
+		*store local string to input other all[] rows into the tab3 matrix
 		local other_rows ""
 		forval x=1/3 {
-			local other_rows "`other_rows' ., all[`x',2..5], ., all[`x',7..10], `section'" /* leave obs empty, fill in others */
-			if `x' < 3 local other_rows "`other_rows' \ " // add line break if not end
+		local other_rows "`other_rows' ., all[`x',2], ., all[`x',4], .,all[`x',6..8], 2" /* leave obs empty, fill in others */
+		if `x' < 3 local other_rows "`other_rows' \ " // add line break if not end
 		}
-	mat tab3B`section' = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., `section' \ /* put total non-missing obs on first line only */ ///
-				`other_rows')
-	mat list tab3B`section'
-	if `section' == 2 {
-		mat tab3B2 = (., ., ., ., ., ., ., ., ., ., 2 \ tab3B2)
-		mat rownames tab3B2 = "External_Reporting_Channel" "Internal_Reporters" ///
-								"Straight_to_Court_System" "Government_Agency" "External_Auditor"
-		mat list tab3B2
+		mat tab3B`subpanel'`section' = (all[1,1], ., all[1,3], ., all[1,5], ., ., ., 2 \ /* put total non-missing obs on first line only */ ///
+			`other_rows')
+		mat list tab3B`subpanel'`section'
+
+		if `section' == 2 {
+			mat tab3B`subpanel'2 = (., ., ., ., ., ., ., ., 2 \ tab3B`subpanel'2)
+			mat rownames tab3B`subpanel'2 = "External_Reporting_Channel" "Internal_Reporters" ///
+									"Straight_to_Court_System" "Government_Agency" "External_Auditor"
+			mat list tab3B`subpanel'2
+		}
+		if `section' == 3 {
+			mat rownames tab3B`subpanel'3 = "External_Only_Reporters" "Straight_to_Court_System" ///
+									"Government_Agency" "External_Auditor"
+			mat list tab3B`subpanel'3
+		}
 	}
-	if `section' == 3 {
-		mat rownames tab3B3 = "External_Only_Reporters" "Straight_to_Court_System" ///
-								"Government_Agency" "External_Auditor"
-		mat list tab3B3
-	}
-}
 *--------------------------------------------
 * Now export to excel workbook
 preserve
 	drop _all
-	mat full_tab3B = (tab3B1 \ tab3B2 \ tab3B3)
-	svmat2 full_tab3B, names(obsA allegationsA settledA ave_settlementA settlementA ///
-								obsP allegationsP settledP ave_settlementP settlementP subtable) rnames(rowname)
+	mat full_tab3B`subpanel' = (tab3B`subpanel'1 \ tab3B`subpanel'2 \ tab3B`subpanel'3)
+	svmat2 full_tab3B`subpanel', names(obsA settledA obsNS allegationsNS obsS allegationsS ///
+										ave_settlementS settlementS subtable) rnames(rowname)
 	*Calculate %s of Total by subtable instead of overall // -------------------
-	foreach col in "allegationsA" "allegationsP" {	
+	foreach col in "allegationsNS" "allegationsS" {	
 		bys subtable: egen tot = total(`col') // total cases, settlements, etc. to calculate % of total
 		gen pct = `col'/tot*100 // "% of Total"
 
@@ -837,14 +854,14 @@ preserve
 
 		drop tot pct
 	}
-	foreach col of varlist settled? {
-		tostring `col', gen(`col'_pct_str) format(%9.1f) force // percents for table
-		replace `col'_pct_str = `col'_pct_str + "%" if !inlist(`col'_pct_str,".","0")
-		drop `col'
-	}
+	
+	tostring settledA, gen(settledA_pct_str) format(%9.1f) force // percents for table
+	replace settledA_pct_str = settledA_pct_str + "%" if !inlist(settledA_pct_str,".","0")
+	drop settledA
+	
 	* end %s of Total // -------------------------------------------------------
-	order rowname obsA allegationsA allegationsA_pct_str settledA_pct_str ave_settlementA settlementA ///
-				obsP allegationsP allegationsP_pct_str settledP_pct_str ave_settlementP settlementP
+	order rowname obsA settledA_pct_str obsNS allegationsNS allegationsNS_pct_str ///
+				obsS allegationsS allegationsS_pct_str ave_settlementS settlementS
 	replace rowname = "    " + rowname if ///
 		!inlist(rowname, "Internal_Reporting_Channel", "External_Reporting_Channel", ///
 								"Internal_Reporters", "External_Only_Reporters")
@@ -862,8 +879,10 @@ preserve
 	drop subtable
 	br
 	*pause
-	export excel "$dropbox/draft_tables.xls", sheet("3.B") sheetrep first(var)
+	export excel "$dropbox/draft_tables.xls", sheet("3.B`subpanel'") sheetrep first(var)
 restore
+drop stld_*
+	} //loop over subpanels a and b
 } // end Panel B ---------------------------------------------------------------
 
 *------------------------------------
@@ -1257,133 +1276,166 @@ preserve
 restore 
 } // end Panel A --------------------------------------------------------------- 
 
-*Panel B
-if `run_4B' == 1 | `run_all' == 1 {
+*Panel B 
+if `run_4BC' == 1 | `run_all' == 1 {
 * --- Firm Response to Allegation --- *
-foreach var of varlist response_* {
+
+foreach panel in "B" "C" {   //Nearly identi panels, for all/public firm samples
+	foreach var of varlist response_* {
 	local response = substr("`var'", 10, .)
-	gen stlmt_`response' = settlement * (`var' > 0)
 	gen stld_`response' = settled * (`var' > 0)
-}
-preserve // -- first do right side of table, "Public Firms"
-	keep if wb_raised_issue_internally == "YES"
-	keep if gvkey != .
-	collapse (sum) response_* stlmt* (mean) stld_* ave_coverup =stlmt_coverup ave_ignored=stlmt_ignored ///
-											ave_int_inv=stlmt_int_inv ave_unknown=stlmt_unknown, fast
-	ren response_* n* // for reshape
-	gen i = _n
-	reshape long n stld_ ave_ stlmt_ , i(i) j(response) string
-	egen obsP = total(n) // total observations not missing
-	ren n allegationsP
-	ren stlmt_ settlementP
-	ren ave_ ave_settlementP
-	ren stld_ settledP
-		replace settledP = settledP * 100
-	tempfile public4B1
-	save `public4B1', replace
-restore
-preserve // -- now do left side of table, "All Firms"
-	keep if wb_raised_issue_internally == "YES"
-	collapse (sum) response_* stlmt* (mean) stld_* ave_coverup =stlmt_coverup ave_ignored=stlmt_ignored ///
-											ave_int_inv=stlmt_int_inv ave_unknown=stlmt_unknown, fast
-	ren response_* n* // for reshape
-	gen i = _n
-	reshape long n stld_ ave_ stlmt_, i(i) j(response) string
-	gsort -n
-	egen obsA = total(n)
-	ren n allegationsA
-	ren stlmt_ settlementA
-	ren ave_ ave_settlementA
-	ren stld_ settledA
-		replace settledA = settledA*100
-	merge 1:1 response using `public4B1', assert(1 3)
-	gen missing_response = response == "unknown"
-	gsort missing_response -allegationsA -allegationsP
+	}
+	preserve // -- first do right side of table, "settled"
+		keep if wb_raised_issue_internally == "YES"
+		if "`panel'" == "C" keep if gvkey != .
+		keep if settled == 1
+		foreach var of varlist response_*{
+			local response = substr("`var'", 10, .)
+			gen stlmt_`response' = settlement * (`var' > 0)
+		}
+		collapse (sum) response_* stlmt* (mean) ave_coverup =stlmt_coverup ave_ignored=stlmt_ignored ///
+												ave_int_inv=stlmt_int_inv ave_unknown=stlmt_unknown, fast
+		ren response_* n* // for reshape
+		gen i = _n
+		reshape long n ave_ stlmt_ , i(i) j(response) string
+		egen obsS = total(n) // total observations not missing
+		ren n allegationsS
+		ren stlmt_ settlementS
+		ren ave_ ave_settlementS
+		tempfile settled4`panel'1
+		save `settled4`panel'1', replace
+	restore
+	preserve // -- now do left side of table, "Not settled"
+		keep if wb_raised_issue_internally == "YES"
+		if "`panel'" == "C" keep if gvkey != .
+		keep if settled == 0
+		collapse (sum) response_*, fast
+		ren response_* n* // for reshape
+		gen i = _n
+		reshape long n, i(i) j(response) string
+		gsort -n
+		egen obsNS = total(n)
+		ren n allegationsNS
+		merge 1:1 response using `settled4`panel'1', nogen
+		gen missing_response = response == "unknown"
+		gsort missing_response -allegationsS -allegationsNS
 		br
 		*pause
-		drop if allegationsA == .
-	mkmat obsA allegationsA settledA ave_settlementA settlementA obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(response)
-restore
+		drop if allegationsNS == .
+		tempfile all4`panel'1
+		save `all4`panel'1', replace
+	restore
+	preserve
+		keep if wb_raised_issue_internally == "YES"
+		if "`panel'" == "C" keep if gvkey != .
+		collapse (sum) response_* (mean) stld_*, fast 
+		ren response_* n* // for reshape
+		gen i = _n
+		reshape long n stld_ , i(i) j(response) string
+		egen obsA = total(n) // total observations not missing
+		ren stld_ settledA
+		replace settledA = settledA * 100
+		merge 1:1 response using `all4`panel'1', nogen assert(1 3)
+		gsort missing_response -allegationsS -allegationsNS
+	mkmat obsA settledA obsNS allegationsNS obsS allegationsS ave_settlementS settlementS, mat(all) rownames(response)
+	restore
 
 *store local string to input other all[] rows into the tab3 matrix
 	local other_rows ""
 	forval x=1/4 {
-		local other_rows "`other_rows' ., all[`x',2..5], .,all[`x',7..10], 1" /* leave obs empty, fill in others */
+		local other_rows "`other_rows' ., all[`x',2], ., all[`x',4], .,all[`x',6..8], 1" /* leave obs empty, fill in others */
 		if `x' < 4 local other_rows "`other_rows' \ " // add line break if not end
 	}
-mat tab4B1 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
+	mat tab4`panel'1 = (all[1,1], ., all[1,3], ., all[1,5], ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
-mat list tab4B1
-mat rownames tab4B1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Internal_Investigation" "None_Mentioned"
+	mat list tab4`panel'1
+	mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Internal_Investigation" "None_Mentioned"
 
 * --- Firm Retaliation Against Whistleblower --- *
-drop stlmt* stld*
-foreach var of varlist retaliation_* {
-	local retaliation = substr("`var'", 13, .)
-	gen stlmt_`retaliation' = settlement * (`var' > 0)
-	gen stld_`retaliation' = settled * (`var' > 0)
-}
-preserve // -- first do right side of table, "Public Firms"
-	keep if wb_raised_issue_internally == "YES"
-	keep if gvkey != .
-	collapse (sum) retaliation_* stlmt* (mean) stld_* ave_fired=stlmt_fired ave_none=stlmt_none ave_harassed=stlmt_harassed ///
+	drop stld*
+	foreach var of varlist retaliation_* {
+		local retaliation = substr("`var'", 13, .)
+		gen stld_`retaliation' = settled * (`var' > 0)
+	}
+	preserve // -- first do right side of table, "Public Firms"
+		keep if wb_raised_issue_internally == "YES"
+		if "`panel'" == "C" keep if gvkey != .
+		keep if settled == 1
+		foreach var of varlist retaliation_* {
+			local retaliation = substr("`var'", 13, .)
+			gen stlmt_`retaliation' = settlement * (`var' > 0)
+		}
+		collapse (sum) retaliation_* stlmt* (mean) ave_fired=stlmt_fired ave_none=stlmt_none ave_harassed=stlmt_harassed ///
 											   ave_threat=stlmt_threat ave_quit=stlmt_quit ave_demotion=stlmt_demotion ///
 											   ave_suspension=stlmt_suspension ave_lawsuit=stlmt_lawsuit, fast
-	ren retaliation_* n* // for reshape
-	gen i = _n
-	reshape long n stld_ ave_ stlmt_ , i(i) j(retaliation) string
-	egen obsP = total(n) // total observations not missing
-	ren n allegationsP
-	ren stlmt_ settlementP
-	ren ave_ ave_settlementP
-	ren stld_ settledP
-		replace settledP = settledP*100
-	tempfile public4B2
-	save `public4B2', replace
-restore
-preserve // -- now do left side of table, "All Firms"
-	keep if wb_raised_issue_internally == "YES"
-	collapse (sum) retaliation_* stlmt* (mean) stld_* ave_fired=stlmt_fired ave_none=stlmt_none ave_harassed=stlmt_harassed ///
-											   ave_threat=stlmt_threat ave_quit=stlmt_quit ave_demotion=stlmt_demotion ///
-											   ave_suspension=stlmt_suspension ave_lawsuit=stlmt_lawsuit, fast
-	ren retaliation_* n* // for reshape
-	gen i = _n
-	reshape long n stld_ ave_ stlmt_ , i(i) j(retaliation) string
-	gsort -n
-	egen obsA = total(n)
-	ren n allegationsA
-	ren stlmt_ settlementA
-	ren ave_ ave_settlementA
-	ren stld_ settledA
-		replace settledA = settledA*100
-	merge 1:1 retaliation using `public4B2', assert(3)
-	gen no_ret = retaliation == "none"
-	gsort no_ret -allegationsA -allegationsP
-		br
+		ren retaliation_* n* // for reshape
+		gen i = _n
+		reshape long n ave_ stlmt_ , i(i) j(retaliation) string
+		egen obsS = total(n) // total observations not missing
+		ren n allegationsS
+		ren stlmt_ settlementS
+		ren ave_ ave_settlementS
+		tempfile settled4`panel'2
+		save `settled4`panel'2', replace
+	restore
+	preserve // -- now do left side of table, "Not settled"
+		keep if wb_raised_issue_internally == "YES"
+		if "`panel'" == "C" keep if gvkey != .
+		keep if settled == 0
+		collapse (sum) retaliation_*, fast
+		ren retaliation_* n* // for reshape
+		gen i = _n
+		reshape long n, i(i) j(retaliation) string
+		gsort -n
+		egen obsNS = total(n)
+		ren n allegationsNS
+		merge 1:1 retaliation using `settled4`panel'2', assert(1 3)
+		gen no_ret = retaliation == "none"
+		gsort no_ret -allegationsS -allegationsNS
+		br 
 		*pause
-	mkmat obsA allegationsA settledA ave_settlementA settlementA obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(retaliation)
-restore
+		drop if allegationsNS == .
+		tempfile all4`panel'2
+		save `all4`panel'2', replace
+	restore 
+	preserve
+		keep if wb_raised_issue_internally == "YES"
+		if "`panel'" == "C" keep if gvkey != .
+		collapse (sum) retaliation_* (mean) stld_*, fast 
+		ren retaliation_* n* // for reshape
+		gen i = _n
+		reshape long n stld_ , i(i) j(retaliation) string
+		egen obsA = total(n) // total observations not missing
+		ren stld_ settledA
+		replace settledA = settledA * 100
+		merge 1:1 retaliation using `all4`panel'2', nogen assert(3)
+		gsort no_ret -allegationsS -allegationsNS
+		mkmat obsA settledA obsNS allegationsNS obsS allegationsS ave_settlementS settlementS, mat(all) rownames(retaliation)
+	restore
 
 *store local string to input other all[] rows into the tab3 matrix
 	local other_rows ""
 	forval x=1/8 {
-		local other_rows "`other_rows' ., all[`x',2..5], .,all[`x',7..10], 2" /* leave obs empty, fill in others */
+		local other_rows "`other_rows' ., all[`x',2], ., all[`x', 4], ., all[`x',6..8], 2" /* leave obs empty, fill in others */
 		if `x' < 8 local other_rows "`other_rows' \ " // add line break if not end
 	}
-mat tab4B2 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 2 \ /* put total non-missing obs on first line only */ ///
+	mat tab4`panel'2 = (all[1,1], ., all[1,3], ., all[1,5], ., ., ., 2 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
-mat list tab4B2
-mat rownames tab4B2 = "Retaliation_Against_WB" "Fired" "Harassed" "Threat" "Quit" ///
+	mat list tab4`panel'2
+	mat rownames tab4`panel'2 = "Retaliation_Against_WB" "Fired" "Harassed" "Threat" "Quit" ///
 				"Demotion" "Suspension" "Lawsuit" "None_Mentioned"
+	drop stld_*
+}
+
 *--------------------------------------------
 * Now export to excel workbook
 preserve
 	drop _all
-	mat full_tab4B = (tab4B1 \ tab4B2)
-	svmat2 full_tab4B, names(obsA allegationsA settledA ave_settlementA settlementA ///
-							obsP allegationsP settledP ave_settlementP settlementP subtable) rnames(rowname)
+	mat full_tab41`panel' = (tab4`panel'1 \ tab4`panel'2)
+	svmat2 full_tab4`panel', names(obsA settledA obsNS allegationsNS obsS ///
+							allegationsS ave_settlementS settlementS subtable) rnames(rowname)
 	*Calculate %s of Total by subtable instead of overall // -------------------
-	foreach col in "allegationsA" "allegationsP" {	
+	foreach col in "allegationsNS" "allegationsS" {	
 		bys subtable: egen tot = total(`col') // total cases, settlements, etc. to calculate % of total
 		gen pct = `col'/tot*100 // "% of Total"
 
@@ -1393,19 +1445,19 @@ preserve
 
 		drop tot pct
 	}
-	foreach col of varlist settled? {
-		tostring `col', gen(`col'_pct_str) format(%9.1f) force // percents for table
-		replace `col'_pct_str = `col'_pct_str + "%" if !inlist(`col'_pct_str,".","0")
-		drop `col'
-	}
+
+	tostring settledA, gen(settledA_pct_str) format(%9.1f) force // percents for table
+	replace settledA_pct_str = settledA_pct_str + "%" if !inlist(settledA_pct_str,".","0")
+	drop settledA
+	
 	* end %s of Total // -------------------------------------------------------
-	order rowname obsA allegationsA allegationsA_pct_str settledA_pct_str ave_settlementA settlementA ///
-				obsP allegationsP allegationsP_pct_str settledP_pct_str ave_settlementP settlementP
+	order rowname obsA settledA_pct_str obsNS allegationsNS allegationsNS_pct_str obsS ///
+							allegationsS allegationsS_pct_str ave_settlementS settlementS subtable
 	replace rowname = "    " + rowname if ///
 		!inlist(rowname, "Response_to_Allegation", "Retaliation_Against_WB")
 	replace rowname = subinstr(rowname, "_", " ", .)
 	
-	foreach var in ave_settlementA settlementA ave_settlementP settlementP { 
+	foreach var in ave_settlementS settlementS { 
 		tostring `var', replace force format(%9.1f) 
 			replace `var' = "$" + `var' if `var' != "." 
 	} 
@@ -1414,16 +1466,17 @@ preserve
 		replace `var' = "" if `var' == "." 
 	} 
 	drop subtable
-	export excel "$dropbox/draft_tables.xls", sheet("4.B") sheetrep first(var)
+	export excel "$dropbox/draft_tables.xls", sheet("4.`panel'") sheetrep first(var)
 restore
 
-} // end Panel B ---------------------------------------------------------------
+}  //loop through pabel B and C
+}  // end Panel B & C---------------------------------------------------------------
 
 
-* Panels C
-if `run_4CDE' == 1 | `run_all' == 1 {
+* Panels DEF
+if `run_4DEF' == 1 | `run_all' == 1 {
 *------------------------------------
-foreach panel in "C" "D" "E" { // --- These panels are nearly identical, just for different management classes
+foreach panel in "D" "E" "F" { // --- These panels are nearly identical, just for different management classes
 
 * --- Firm Response to Allegation --- *
 	cap drop stlmt_* stld_*
@@ -1433,9 +1486,9 @@ foreach panel in "C" "D" "E" { // --- These panels are nearly identical, just fo
 		gen stld_`response' = settled * (`var' > 0)
 	}
 	preserve // -- first do Public firms
-		if "`panel'" == "C" keep if mgmt_class == "Lower"
-		if "`panel'" == "D" keep if mgmt_class == "Middle"
-		if "`panel'" == "E" keep if mgmt_class == "Upper"
+		if "`panel'" == "D" keep if mgmt_class == "Lower"
+		if "`panel'" == "E" keep if mgmt_class == "Middle"
+		if "`panel'" == "F" keep if mgmt_class == "Upper"
 		
 		keep if gvkey != . & wb_raised_issue_internally == "YES"
 
@@ -1454,9 +1507,9 @@ foreach panel in "C" "D" "E" { // --- These panels are nearly identical, just fo
 		save `public4`panel'1', replace
 	restore
 	preserve // -- now do all firms
-		if "`panel'" == "C" keep if mgmt_class == "Lower"
-		if "`panel'" == "D" keep if mgmt_class == "Middle"
-		if "`panel'" == "E" keep if mgmt_class == "Upper"
+		if "`panel'" == "D" keep if mgmt_class == "Lower"
+		if "`panel'" == "E" keep if mgmt_class == "Middle"
+		if "`panel'" == "F" keep if mgmt_class == "Upper"
 		
 		keep if wb_raised_issue_internally == "YES"
 		collapse (sum) response_* stlmt* (mean) stld_* ave_coverup =stlmt_coverup ave_ignored=stlmt_ignored ///
@@ -1488,13 +1541,13 @@ foreach panel in "C" "D" "E" { // --- These panels are nearly identical, just fo
 	mat tab4`panel'1 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
 				`other_rows')
 	mat list tab4`panel'1
-	if "`panel'" == "C" {
-		mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Internal_Investigation" "None_Mentioned"
-	}
 	if "`panel'" == "D" {
 		mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Internal_Investigation" "None_Mentioned"
 	}
 	if "`panel'" == "E" {
+		mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Internal_Investigation" "None_Mentioned"
+	}
+	if "`panel'" == "F" {
 		mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Internal_Investigation" "None_Mentioned"
 	}
 
@@ -1506,9 +1559,9 @@ foreach panel in "C" "D" "E" { // --- These panels are nearly identical, just fo
 		gen stld_`retaliation' = settled * (`var' > 0)
 	}
 	preserve // -- first do public firms
-		if "`panel'" == "C" keep if mgmt_class == "Lower"
-		if "`panel'" == "D" keep if mgmt_class == "Middle"
-		if "`panel'" == "E" keep if mgmt_class == "Upper"
+		if "`panel'" == "D" keep if mgmt_class == "Lower"
+		if "`panel'" == "E" keep if mgmt_class == "Middle"
+		if "`panel'" == "F" keep if mgmt_class == "Upper"
 		
 		keep if gvkey != . & wb_raised_issue_internally == "YES"
 
@@ -1528,9 +1581,9 @@ foreach panel in "C" "D" "E" { // --- These panels are nearly identical, just fo
 		save `public4`panel'2', replace
 	restore
 	preserve // -- now do all firms
-		if "`panel'" == "C" keep if mgmt_class == "Lower"
-		if "`panel'" == "D" keep if mgmt_class == "Middle"
-		if "`panel'" == "E" keep if mgmt_class == "Upper"
+		if "`panel'" == "D" keep if mgmt_class == "Lower"
+		if "`panel'" == "E" keep if mgmt_class == "Middle"
+		if "`panel'" == "F" keep if mgmt_class == "Upper"
 		
 		keep if wb_raised_issue_internally == "YES"
 
@@ -1564,15 +1617,15 @@ foreach panel in "C" "D" "E" { // --- These panels are nearly identical, just fo
 	mat tab4`panel'2 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 2 \ /* put total non-missing obs on first line only */ ///
 				`other_rows')
 	mat list tab4`panel'2
-	if "`panel'" == "C" {
+	if "`panel'" == "D" {
 		mat rownames tab4`panel'2 = "Retaliation_Against_WB" "Fired" "Harassed" "Threat" "Quit" ///
 				"Demotion" "Suspension" "Lawsuit" "None_Mentioned"
 	}
-	if "`panel'" == "D" {
+	if "`panel'" == "E" {
 		mat rownames tab4`panel'2 = "Retaliation_Against_WB" "Fired" "Harassed" "Threat" "Demotion" "Quit" ///
 				"Suspension" "Lawsuit" "None_Mentioned"
 	}
-	if "`panel'" == "E" {
+	if "`panel'" == "F" {
 		mat rownames tab4`panel'2 = "Retaliation_Against_WB" "Fired" "Harassed" "Threat" "Demotion" ///
 				"Suspension" "Quit" "Lawsuit" "None_Mentioned"
 	}
@@ -1624,5 +1677,5 @@ foreach panel in "C" "D" "E" { // --- These panels are nearly identical, just fo
 		export excel "$dropbox/draft_tables.xls", sheet("4.`panel'") sheetrep first(var)
 	restore
 } // end panel loop
-} // end Panels C, D, and E ----------------------------------------------------------
+} // end Panels D, E, and F ----------------------------------------------------------
 

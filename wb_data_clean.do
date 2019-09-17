@@ -287,6 +287,20 @@ drop if internal == 0 & wb_raised_issue_internally == "YES"
 append using "$dropbox/raised_yes_employee_no.dta"
 	drop mgmt_class wb_type wb_age_bin // already exist in raised_yes_employee_no.dta
 
+egen non_audit_reports = rowtotal(billing colleague direct_supervisor hotline hr legalcompliance relevantdirector topmanager)
+replace int_auditor = auditor if auditor > 0 & wb_raised_issue_internally == "YES" ///
+	& non_audit_reports == 0 & int_auditor == .
+/* Initially ambiguous internal/external audit cases: 2586, 674*/
+replace int_auditor = auditor if wb_raised_issue_internally == "YES" ///
+	& non_audit_reports > 0 & inlist(case_id, 2586, 674) & int_auditor
+drop non_audit_reports
+replace ext_auditor = auditor if wb_raised_issue_internally == "NO" & ext_auditor == .
+replace int_auditor = 0 if int_auditor == .
+replace ext_auditor = 0 if ext_auditor == .
+/* Case file missing; can't check internal or external auditor */
+drop if caption == "US ex rel Tompkins, Jimmy M v Adham, Abdullah N; Lamarre, Louise; Olusola, Benedict O et al"
+gen ext_to_courts = (ext_auditor == 0 & gov == 0)
+
 *management classification
 #delimit ;
 gen mgmt_class = "Upper" if strpos(lower(job_title_at_fraud_firm), "ceo") > 0 |
@@ -309,20 +323,19 @@ tab job_title if mgmt_class == "Upper";
 tab job_title if mgmt_class == "Middle";
 tab job_title if mgmt_class == "Lower";
 */
-#delimit cr
-*correct job functions of investigator
-	replace wb_description_external = "Government Investigator" if case_id == 5603
-	replace wb_description_external = "Unspecified/Miscellaneous" if case_id == 500 & wb_full_name == "Roberts, Neal"
-	replace wb_description_external = "Private Investigator" if case_id == 5624 & wb_full_name == "Dunlap, William"
-	replace wb_description_external = "Federal Employee" if case_id == 749 & wb_full_name == "Oberg, Jon H."
-	replace wb_description_external = "Bankruptcy Trustee" if case_id == 537 & wb_full_name == "Koch, Dr. Ludwig"
-	replace wb_description_external = "Government Senior Investigator" if case_id == 701
-	replace wb_description_external = "Private Investigator" if case_id == 551 & wb_full_name == "Burns, John"
-	replace wb_description_external = "Private Investigator" if case_id == 288 & wb_full_name == "Fairbrother, Faith"
-	replace wb_description_external = "Unspecified/Miscellaneous" if case_id == 595 & wb_full_name == "Crennen, Christopher"
-	replace wb_description_external = "Unspecified" if case_id == 151 & wb_full_name == "Brian, Danielle"
-	replace wb_description_external = "Unspecified" if case_id == 151 & wb_full_name == "Brock, Leonard"
 #delimit ;
+*correct job functions of investigator
+	replace wb_description_external = "Government Investigator" if case_id == 5603;
+	replace wb_description_external = "Unspecified/Miscellaneous" if case_id == 500 & wb_full_name == "Roberts, Neal";
+	replace wb_description_external = "Private Investigator" if case_id == 5624 & wb_full_name == "Dunlap, William";
+	replace wb_description_external = "Federal Employee" if case_id == 749 & wb_full_name == "Oberg, Jon H.";
+	replace wb_description_external = "Bankruptcy Trustee" if case_id == 537 & wb_full_name == "Koch, Dr. Ludwig";
+	replace wb_description_external = "Government Senior Investigator" if case_id == 701;
+	replace wb_description_external = "Private Investigator" if case_id == 551 & wb_full_name == "Burns, John";
+	replace wb_description_external = "Private Investigator" if case_id == 288 & wb_full_name == "Fairbrother, Faith";
+	replace wb_description_external = "Unspecified/Miscellaneous" if case_id == 595 & wb_full_name == "Crennen, Christopher";
+	replace wb_description_external = "Unspecified" if case_id == 151 & wb_full_name == "Brian, Danielle";
+	replace wb_description_external = "Unspecified" if case_id == 151 & wb_full_name == "Brock, Leonard";
 
 
 gen wb_type = "(Former) Employee" if internal == 1;
@@ -426,3 +439,5 @@ restore
 */
 
 merge 1:1 caption wb_full_name using "$dropbox/wb_public_ma", nogen keepus(at roacurrent lev) keep(1 3)
+
+
