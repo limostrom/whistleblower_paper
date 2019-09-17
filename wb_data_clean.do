@@ -309,7 +309,7 @@ tab job_title if mgmt_class == "Upper";
 tab job_title if mgmt_class == "Middle";
 tab job_title if mgmt_class == "Lower";
 */
-
+#delimit cr
 *correct job functions of investigator
 	replace wb_description_external = "Government Investigator" if case_id == 5603
 	replace wb_description_external = "Unspecified/Miscellaneous" if case_id == 500 & wb_full_name == "Roberts, Neal"
@@ -322,7 +322,7 @@ tab job_title if mgmt_class == "Lower";
 	replace wb_description_external = "Unspecified/Miscellaneous" if case_id == 595 & wb_full_name == "Crennen, Christopher"
 	replace wb_description_external = "Unspecified" if case_id == 151 & wb_full_name == "Brian, Danielle"
 	replace wb_description_external = "Unspecified" if case_id == 151 & wb_full_name == "Brock, Leonard"
-
+#delimit ;
 
 
 gen wb_type = "(Former) Employee" if internal == 1;
@@ -341,10 +341,10 @@ replace wb_type = "Consultant" if strpos(lower(wb_description_external), "consul
 								& internal == 0;
 replace wb_type = "Contractor" if strpos(lower(wb_description_external), "contract") > 0
 								& internal == 0;
-replace wb_type = "Government" if (inlist(wb_description_external, "Behalf of Usa", "Employed With Fbi", "Usda Worker")
+replace wb_type = "Government Employee" if (inlist(wb_description_external, "Employed With Fbi", "Usda Worker", "Federal Employee")
 								| strpos(lower(wb_description_external), "government") > 0)
 								& internal == 0;
-replace wb_type = "Investigator" if (strpos(lower(wb_description_external), "private investigator") > 0
+replace wb_type = "Private Investigator" if (strpos(lower(wb_description_external), "private investigator") > 0
 								| strpos(lower(wb_description_external), "investegator") > 0)
 								& internal == 0;
 replace wb_type = "Stockholder" if wb_description_external == "Stockholder";
@@ -426,5 +426,3 @@ restore
 */
 
 merge 1:1 caption wb_full_name using "$dropbox/wb_public_ma", nogen keepus(at roacurrent lev) keep(1 3)
-=======
-
