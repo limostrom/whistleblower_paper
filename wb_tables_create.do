@@ -22,8 +22,8 @@ local run_3A 0
 local run_3B 0
 local run_3CD 0
 local run_4A 1
-local run_4BC 0
-local run_4DEF 0
+local run_4BC 1
+local run_4DEF 1
 local run_all 0
 *---------------------------
 global name dyu
@@ -1176,39 +1176,7 @@ foreach subpanel in "a" "b" {
 if `run_4A' == 1 | `run_all' == 1 {
 *------------------------------------
 
-*------------Descriptive statstistics on respons/retaliation-------------------*
-preserve
-	keep if wb_raised_issue_internally == "YES"
-	collapse (count) allegations = case_id (mean) settled ave_settlementA = settlement (sum)settlement, by(n_response)
-	egen obsA = total(allegations)
-	ren allegations allegationsA
-	ren settled settledA
-		replace settledA = settledA*100
-	ren settlement settlementA
-		br
-		*pause
-	mkmat obsA allegationsA settledA ave_settlementA settlementA, mat(all) rownames(n_responses)
-restore
-preserve
-	keep if wb_raised_issue_internally == "YES"
-	keep if gvkey != .
-	collapse (count) allegations = case_id (mean) settled ave_settlementP = settlement (sum)settlement, by(n_response)
-	egen obsP = total(allegations)
-	ren allegations allegationsP
-	ren settled settledP
-		replace settledP = settledP*100
-	ren settlement settlementP
-	mkmat obsP allegationsP settledP ave_settlementP settlementP, mat(public)
-restore 
-
-mat tab4A1 = (all[1,1], ., ., ., ., public[1,1], ., ., ., ., 1 \ /* put total non-missing obs on first line only, not under either gender */ /// 
-			., all[1,2..5], ., public[1,2..5],  1 \ /* leave obs empty, fill in allegations and settlements columns */ /// 
-			., all[2,2..5], ., public[2,2..5],  1 \ /// 
-			., all[3,2..5], ., public[3,2..5],  1 \ /// 
-			., all[4,2..5], ., public[4,2..5],  1) 
-mat rownames tab4A1 = "Number_of_Responses_by_Firms" "None_Mentioned" "One" "Two" "Three"
-mat list tab4A1	
-
+*------------Descriptive statstistics on Retaliation-------------------*
 preserve
 	keep if wb_raised_issue_internally == "YES"
 	collapse (count) allegationsA = case_id (mean) settled ave_settlementA = settlement (sum) settlement, by(n_retaliations)
@@ -1243,7 +1211,7 @@ mat list tab4A2
 
 preserve 
 	drop _all 
-	mat full_tab4A = (tab4A1 \ tab4A2) 
+	mat full_tab4A = (tab4A2) 
 	svmat2 full_tab4A, names(obsA allegationsA settledA ave_settlementA settlementA /// 
 							 obsP allegationsP settledP ave_settlementP settlementP subtable) rnames(rowname) 
 	*Calculate %s of Total by subtable instead of overall // ------------------- 
