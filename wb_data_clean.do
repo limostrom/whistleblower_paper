@@ -250,15 +250,6 @@ restore
 			replace wb_raised_issue_internally = "" if wb_raised_issue_internally == "Incomplete court files"
 			replace wb_raised_issue_internally = "YES" if wb_raised_issue_internally == "YES-implicitly"
 
-	egen n_reports = rowtotal(auditor billing colleague direct_supervisor gov hotline hr ///
-								legalcompliance relevantdirector topmanager)
-
-	egen n_responses = rowtotal(response_coverup response_ignored response_int_inv)
-		replace response_unknown = 1 if n_responses == 0 & wb_raised_issue_internally == "YES"
-
-	egen n_retaliations = rowtotal(retaliation_demotion retaliation_fired retaliation_harassed retaliation_lawsuit retaliation_threat retaliation_suspension)
-		replace retaliation_none = 1 if n_retaliations == 0 & wb_raised_issue_internally == "YES"
-
 	replace reason_not_raised_internally = "no information" if (reason_not_raised_internally == "" | reason_not_raised_internally == "Added observation")
 	replace reason_not_raised_internally = "resisted demands" if strpos(lower(reason_not_raised_internally), "resisted de") > 0
 
@@ -413,6 +404,24 @@ replace fyear = year(received_date) if fyear == .
 *Naming raised internally consistently
 replace wb_raised_issue_internally = "NO" if inlist(wb_raised_issue_internally, ".", "", "NO ", " ") // just one more time for good measure??
 
+*Reporting channels, responses, and retaliations
+	egen n_reports = rowtotal(auditor billing colleague direct_supervisor gov hotline hr ///
+								legalcompliance relevantdirector topmanager)
+
+	egen n_responses = rowtotal(response_coverup response_ignored response_int_inv)
+		replace n_responses = 0 if n_responses == .
+		replace response_unknown = 1 if n_responses == 0 & wb_raised_issue_internally == "YES"
+		replace response_coverup = 0 if response_int_inv == 1
+		replace response_ignored = 0 if response_int_inv == 1 | response_coverup == 1
+		drop n_responses
+		egen n_responses = rowtotal(response_coverup response_ignored response_int_inv response_unknown)
+			assert n_responses == 1 if wb_raised_issue_internally == "YES"
+
+	egen n_retaliations = rowtotal(retaliation_demotion retaliation_fired retaliation_harassed retaliation_lawsuit retaliation_threat retaliation_suspension)
+		replace n_retaliations = 0 if n_retaliations == .
+		replace n_retaliations = 3 if n_retaliations >= 3
+		replace retaliation_none = 1 if n_retaliations == 0 & wb_raised_issue_internally == "YES"
+
 #delimit ;
 replace reason_not_raised_internally = "No Information" if inlist(reason_not_raised, "Added observation",
 												"Added observation ", "", "no information");
@@ -439,5 +448,3 @@ restore
 */
 
 merge 1:1 caption wb_full_name using "$dropbox/wb_public_ma", nogen keepus(at roacurrent lev) keep(1 3)
-
-
