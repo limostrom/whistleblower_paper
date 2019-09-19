@@ -16,14 +16,14 @@ local run_1A 0
 local run_1B 0
 local run_1C 0
 local run_1D 0
-local run_1E 0
+local run_1E 1
 local run_2 0
 local run_3A 0
 local run_3B 0
 local run_3CD 0
-local run_4A 1
-local run_4BC 1
-local run_4DEF 1
+local run_4A 0
+local run_4BC 0
+local run_4DEF 0
 local run_all 0
 *---------------------------
 global name dyu
@@ -269,24 +269,25 @@ if `run_1E' == 1 | `run_all' == 1 {
 include "$repo/FamaFrench12.do"
 include "$repo/assign_missing_famafrench.do"
 
-egen tag_firm = tag(gvkey)
-
 preserve
 bys gvkey: ereplace famafrench12 = mode(famafrench12)
-tab famafrench12 if tag_firm & internal == 1, matcell(m5c2) matrow(m5c1)
-mat m5 = (m5c1, m5c2)
-	mat list m5
+keep if internal == 1 & gvkey != .
+	egen tag_firm = tag(gvkey)
+	egen tag_law = tag(caption)
+collapse (sum) tag_firm tag_law, by(famafrench12)
+mkmat famafrench12 tag_firm tag_law, mat(ff)
 
 drop _all
-svmat2 m5, names(industry allegations)
+svmat2 ff, names(industry firms lawsuits)
 	assert industry != 8
 	set obs 12
 	replace industry = 8 if industry == .
-	replace allegations = 0 if allegations == .
+	replace firms = 0 if firms == .
+	replace lawsuits = 0 if lawsuits == .
 	sort industry
 
 	local leftcol "industry" // need to set these locals for add_total_row_and_pct_col_to_table.do
-	local tab_cols "allegations" // the columns you need to calculate "% of total" for
+	local tab_cols "firms lawsuits" // the columns you need to calculate "% of total" for
 	include "$repo/add_total_row_and_pct_col_to_table.do"
 
 export excel "$dropbox/draft_tables.xls", sheet("1.E") sheetrep first(var)
