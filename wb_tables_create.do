@@ -22,11 +22,11 @@ local run_3A 0
 local run_3B 0
 local run_3CD 0
 local run_4A 0
-local run_4BC 1
-local run_4DEF 1
+local run_4BC 0
+local run_4DEF 0
 local run_all 0
-local run_4BOld 1
-local run_3ANew
+local run_4BOld 0
+local run_3ANew 1
 *---------------------------
 global name dyu
 *global name lmostrom
@@ -662,7 +662,7 @@ restore
 
 *Table 3A settled vs not settled 
 
-if `run_3ANew == 1' | `run_all' == 1{
+if `run_3ANew' == 1 | `run_all' == 1{
 	foreach subpanel in "a" "b" {       //bascially same panels for all/public
 		preserve // -- first do right side of table, "settled"
 			if "`subpanel'" == "b" keep if gvkey !=. 
@@ -672,108 +672,128 @@ if `run_3ANew == 1' | `run_all' == 1{
 			egen obsS = total(allegations) // total observations
 			ren allegations allegationsS
 			ren settlement settlementS
-			mkmat obsS allegationsS ave_settlementS settlementS, mat(all) rownames(wb_raised_issue_internally)
+			mkmat obsS allegationsS ave_settlementS settlementS, mat(settled)
+			mat list settled
 		restore
 		preserve // -- now do left side of table, "not settled"
-			keep if gvkey != .
+			if "`subpanel'" == "b" keep if gvkey !=.
+			keep if settled == 0
 			collapse (count) allegations = case_id, by(wb_raised_issue_internally)
 			drop if wb_raised_issue_internally == ""
 			ren allegations allegationsNS
 			egen obsNS = total(allegations)
-			mkmat obs allegationsNS, mat(not_settled) // don't need row names because
+			mkmat obsNS allegationsNS, mat(not_settled) // don't need row names because
 										// this matrix is being appended to the right of the all matrix
 		restore
-
-		mat tab3A1 = (all[1,1], ., ., ., ., public[1,1], ., ., ., ., 1 \ /* put total non-missing obs on first line only, not under either gender */ ///
-					., all[1,2..5], ., public[1,2..5],  1 \ /* leave obs empty, fill in allegations and settlements columns */ ///
-					., all[2,2..5], ., public[2,2..5],  1)    /* leave obs empty, fill in allegations and settlements columns */
-		mat rownames tab3A1 = "Reported_Internally_First" "No" "Yes"
-		mat list tab3A1 // just to view so it looks right
+		preserve
+			if "`subpanel'" == "b" keep if gvkey !=. 
+			collapse (count) allegationsA = case_id (mean) settled, by(wb_raised_issue_internally)
+			drop if wb_raised_issue_internally == ""
+			egen obsA = total(allegationsA)
+			ren settled settledA
+				replace settledA = settledA * 100
+			mkmat obsA settledA, mat(all)  rownames(wb_raised_issue_internally)
+		restore
+		mat tab3A`subpanel'1 = (all[1,1], ., not_settled[1,1], ., settled[1,1], ., ., ., 1\ /* put total non-missing obs on first line only, not under either gender */ ///
+					., all[1,2], ., not_settled[1,2], ., settled[1,2..4],  1 \ /* leave obs empty, fill in allegations and settlements columns */ ///
+					., all[2,2], ., not_settled[2,2], ., settled[2,2..4],  1)    /* leave obs empty, fill in allegations and settlements columns */
+		mat rownames tab3A`subpanel'1 = "Reported_Internally_First" "No" "Yes"
+		mat list tab3A`subpanel'1 // just to view so it looks right
 
 		* --- Number of Internal Channels --- *
-		preserve // -- first do left side of table, "All Firms"
-			keep if internal == 1 & wb_raised_issue_internally == "YES"
+		preserve // -- first do right side of table, "Settled"
+			if "`subpanel'" == "b" keep if gvkey != .
+			keep if internal == 1 & wb_raised_issue_internally == "YES" & settled == 1
 			replace n_reports = 3 if n_reports >= 3
-			collapse (count) allegations = case_id (mean) settled ave_settlementA = settlement (sum) settlement, by(n_reports)
-			egen obsA = total(allegations) // total observations
-			ren allegations allegationsA
-			ren settlement settlementA
-			ren settled settledA
-				replace settledA = settledA * 100
-			mkmat obsA allegationsA settledA ave_settlementA settlementA, mat(all) rownames(n_reports)
+			collapse (count) allegations = case_id (mean) ave_settlementS = settlement (sum) settlement, by(n_reports)
+			egen obsS = total(allegations) // total observations
+			ren allegations allegationsS
+			ren settlement settlementS
+			mkmat obsS allegationsS ave_settlementS settlementS, mat(settled)
 		restore
-		preserve // -- now do right side of table, "Public Firms"
-			keep if internal == 1 & wb_raised_issue_internally == "YES"
-			replace n_reports = 3 if n_reports >= 3
-			keep if gvkey != .
-			collapse (count) allegations = case_id (mean) settled ave_settlementP = settlement (sum) settlement, by(n_reports)
-			ren allegations allegationsP
-			ren settlement settlementP
-			ren settled settledP
-				replace settledP = settledP * 100
-			egen obsP = total(allegationsP)
-			mkmat obsP allegationsP settledP ave_settlementP settlementP, mat(public) // don't need row names because
+		preserve // -- now do middle section of table, "Not settled"
+			if "`subpanel'" == "b" keep if gvkey !=.
+			keep if internal == 1 & wb_raised_issue_internally == "YES" & settled == 0
+			replace n_reports = 3 if n_reports >= 3.
+			collapse (count) allegations = case_id, by(n_reports)
+			ren allegations allegationsNS
+			egen obsNS = total(allegationsNS)
+			mkmat obsNS allegationsNS, mat(not_settled) // don't need row names because
 										// this matrix is being appended to the right of the all matrix
 		restore
-
-		mat tab3A2 = (all[1,1], ., ., ., ., public[1,1], ., ., ., ., 2 \ /* put total non-missing obs on first line only, not under either gender */ ///
-					., all[1,2..5], ., public[1,2..5],  2 \ /* leave obs empty, fill in allegations and settlements columns */ ///
-					., all[2,2..5], ., public[2,2..5],  2 \ ///
-					., all[3,2..5], ., public[3,2..5],  2 \ ///
-					., all[4,2..5], ., public[4,2..5],  2)
-		mat rownames tab3A2 = "Number_of_Reported_Channels" "Unknown" "One" "Two" "Three_or_More"
-		mat list tab3A2 // just to view so it looks right
-
-		* --- Reasons for Not Reporting --- *
-		preserve // -- first do right side of table, "Public Firms"
-			keep if internal == 1 & wb_raised_issue_internally == "NO"
-			keep if gvkey != .
-			collapse (count) allegations = case_id (sum) settlement (mean) settled ave_settlementP = settlement, by(reason_not_raised_internally)
-			ren allegations allegationsP
-			ren settlement settlementP
-			ren settled settledP
-				replace settledP = settledP*100
-			egen obsP = total(allegationsP)
-			tempfile public3A3
-			save `public3A3', replace
-		restore
-		preserve // now do the left side of the table, "All Firms"
-			keep if internal == 1 & wb_raised_issue_internally == "NO"
-			collapse (count) allegations = case_id (sum) settlement (mean) settled ave_settlementA = settlement, by(reason_not_raised_internally)
-			merge 1:1 reason_not_raised_internally using `public3A3', assert(1 3)
-			egen obsA = total(allegations)
-			ren allegations allegationsA
-			ren settlement settlementA
+		preserve
+			if "`subpanel'" == "b" keep if gvkey !=.
+			collapse (count) allegationsA = case_id (mean) settled, by(n_reports)
+			egen obsA = total(allegationsA)
 			ren settled settledA
 				replace settledA = settledA * 100
-			gsort -allegationsA -allegationsP
-				*br
-				*pause // to know what order row names should go in
-			mkmat obsA allegationsA settledA ave_settlementA settlementA obsP allegationsP settledP ave_settlementP settlementP, ///
-						mat(all) rownames(reason_not_raised_internally)
+			mkmat obsA settledA, mat(all) rownames(n_reports)
 		restore
+		mat tab3A`subpanel'2 = (all[1,1], ., not_settled[1,1], ., settled[1,1], ., ., ., 2 \ /* put total non-missing obs on first line only, not under either gender */ ///
+					., all[1,2], ., not_settled[1,2],., settled[1,2..4], 2 \ /* leave obs empty, fill in allegations and settlements columns */ ///
+					., all[2,2], ., not_settled[2,2],., settled[2,2..4], 2 \ ///
+					., all[3,2], ., not_settled[3,2],., settled[3,2..4], 2 \ ///
+					., all[4,2], ., not_settled[4,2],., settled[4,2..4], 2)
+		mat rownames tab3A`subpanel'2 = "Number_of_Reported_Channels" "Unknown" "One" "Two" "Three_or_More"
+		mat list tab3A`subpanel'2 // just to view so it looks right
 
-		*store local string to input other all[] and public[] rows into the tab2 matrix
-			local other_rows ""
-			forval x=1/4 {
-				local other_rows "`other_rows' ., all[`x',2..5], ., all[`x',7..10], 4" /* leave obs empty, fill in others */
-				if `x' < 4 local other_rows "`other_rows' \ " // add line break if not end
-			}
-		mat tab3A3 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 4 \  /* put total non-missing obs on first line only */ ///
-					`other_rows')
-		mat rownames tab3A3 = "Reasons_for_Not_Reporting" "No_Information" "Fear_of_Retaliation" ///
-								"Supervisors_Involved" "External_Parties_Already_Knew"
-		mat list tab3A3
+		* --- Reasons for Not Reporting --- *
+		preserve // -- first do right side of table, "Settled"
+			if "`subpanel'" == "b" keep if gvkey != .
+			keep if internal == 1 & wb_raised_issue_internally == "NO" & settled == 1
+			collapse (count) allegations = case_id (mean) ave_settlementS = settlement (sum) settlement, by(reason_not_raised_internally)
+			egen obsS = total(allegations) // total observations
+			ren allegations allegationsS
+			ren settlement settlementS
+			tempfile S
+			save `S', replace
+		restore
+		preserve // -- now do middle section of table, "Not settled"
+			if "`subpanel'" == "b" keep if gvkey !=.
+			keep if internal == 1 & wb_raised_issue_internally == "NO" & settled == 0
+			collapse (count) allegations = case_id, by(reason_not_raised_internally)
+			ren allegations allegationsNS
+			egen obsNS = total(allegationsNS)
+			tempfile NS
+			save `NS', replace
+		restore
+		preserve
+			if "`subpanel'" == "b" keep if gvkey !=.
+			keep if internal == 1 & wb_raised_issue_internally == "NO"
+			collapse (count) allegationsA = case_id (mean) settled, by(reason_not_raised_internally)
+			egen obsA = total(allegationsA)
+			ren settled settledA
+				replace settledA = settledA * 100
+			merge 1:1 reason_not_raised_internally using `S', nogen 
+			merge 1:1 reason_not_raised_internally using `NS', nogen 
+			gsort -allegationsS -allegationsNS
+			local N = _N
+			mkmat obsA settledA obsNS allegationsNS obsS allegationsS ave_settlementS settlementS, mat(all) rownames(reason_not_raised_internally)
+			pause
+		restore
+		
+		local other_rows ""
+		forval x=1/`N' {
+			local other_rows "`other_rows' ., all[`x',2], .,all[`x',4], ., all[`x', 6..8], 3" /* leave obs empty, fill in others */
+			if `x' < `N' local other_rows "`other_rows' \ " // add line break if not end
+		}
+		mat tab3A`subpanel'3 = (all[1,1], ., all[1,3], ., all[1,5], ., ., ., 3 \  ///
+			`other_rows')
+		if "`subpanel'" == "b" mat rownames tab3A`subpanel'3 = "Reasons_for_Not_Reporting"  ///
+						"No_Information" "Fear_of_Retaliation" "External_Parties_Already_Knew" 
+		if "`subpanel'" == "a" mat rownames tab3A`subpanel'3 = "Reasons_for_Not_Reporting"  ///
+									"No_Information" "Fear_of_Retaliation" "Supervisors_Involve" "External_Parties_Already_Knew" 
+		mat list tab3A`subpanel'3
 
 		*--------------------------------------------
 		* Now export to excel workbook
 		preserve
 			drop _all
-			mat full_tab3A = (tab3A1 \ tab3A2 \ tab3A3)
-			svmat2 full_tab3A, names(obsA allegationsA settledA ave_settlementA settlementA ///
-									 obsP allegationsP settledP ave_settlementP settlementP subtable) rnames(rowname)
+			mat full_tab3A`subpanel' = (tab3A`subpanel'1 \ tab3A`subpanel'2 \ tab3A`subpanel'3)
+			svmat2 full_tab3A`subpanel', names(obsA settledA obsNS allegationsNS obsS allegationsS ave_settlementS ///
+									 		settlementS subtable) rnames(rowname)
 			*Calculate %s of Total by subtable instead of overall // -------------------
-			foreach col in "allegationsA" "allegationsP" {	
+			foreach col in "allegationsNS" "allegationsS" {	
 				bys subtable: egen tot = total(`col') // total cases, settlements, etc. to calculate % of total
 				gen pct = `col'/tot*100 // "% of Total"
 
@@ -782,19 +802,18 @@ if `run_3ANew == 1' | `run_all' == 1{
 
 				drop tot pct
 			}
-			foreach col of varlist settled? {
-				tostring `col', gen(`col'_pct_str) format(%9.1f) force // percents for table
-				replace `col'_pct_str = `col'_pct_str + "%" if !inlist(`col'_pct_str,".","0")
-				drop `col'
-			}
+			tostring settledA, gen(settledA_pct_str) format(%9.1f) force // percents for table
+			replace settledA_pct_str = settledA_pct_str + "%" if !inlist(settledA_pct_str,".","0")
+			drop settledA
+			
 			* end %s of Total // -------------------------------------------------------
-			order rowname obsA allegationsA allegationsA_pct_str settledA_pct_str ave_settlementA settlementA ///
-						obsP allegationsP allegationsP_pct_str settledP_pct_str ave_settlementP settlementP
+			order rowname obsA settledA_pct_str obsNS allegationsNS allegationsNS_pct_str ///
+						obsS allegationsS allegationsS_pct_str ave_settlementS settlementS
 			replace rowname = "    " + rowname if ///
 				!inlist(rowname, "Reported_Internally_First", "Number_of_Reported_Channels", "Reasons_for_Not_Reporting")
 			replace rowname = subinstr(rowname, "_", " ", .)
 			
-			foreach var in ave_settlementA settlementA ave_settlementP settlementP {
+			foreach var in ave_settlementS settlementS {
 				tostring `var', replace force format(%9.1f)
 					replace `var' = "$" + `var' if `var' != "."
 			}
@@ -803,7 +822,7 @@ if `run_3ANew == 1' | `run_all' == 1{
 				replace `var' = "" if `var' == "."
 			}
 			drop subtable
-			export excel "$dropbox/draft_tables.xls", sheet("3.A") sheetrep first(var)
+			export excel "$dropbox/draft_tables.xls", sheet("3.ANew`subpanel'") sheetrep first(var)
 		restore
 
 	}
