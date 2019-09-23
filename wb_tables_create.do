@@ -17,9 +17,10 @@ local run_1B 0
 local run_1C 0
 local run_1D 0
 local run_1E 0
+local run_1F 1
 local run_2 0
 local run_3A 0
-local run_3B 1
+local run_3B 0
 local run_3CD 0
 local run_4A 0
 local run_4BC 0
@@ -293,6 +294,69 @@ svmat2 ff, names(industry firms lawsuits)
 export excel "$dropbox/draft_tables.xls", sheet("1.E") sheetrep first(var)
 restore
 } // end Panel E ---------------------------------------------------------------
+
+*------------------------------------
+* Panel F
+if `run_1F' == 1 | `run_all' == 1 {
+*------------------------------------
+preserve
+keep if internal == 1 & gvkey != .
+egen tag_firmyr = tag(gvkey fyear)
+keep if tag_firm
+keep gvkey fyear at roacurrent lev aqc
+tempfile sample
+save `sample', replace
+
+use gvkey fyear at ni dltt aqc indfmt consol popsrc datafmt ///
+		if indfmt == "INDL" & consol == "C" & popsrc == "D" & datafmt == "STD" ///
+			& inrange(fyear, 1994, 2012) using "$dropbox/../../Compustat.dta", clear
+isid gvkey fyear
+
+gen roacurrent = ni/at*100
+gen lev = dltt/at
+drop ni dltt indfmt consol popsrc datafmt
+destring gvkey, replace
+drop if gvkey == . | fyear == .
+
+append using `sample', keep(gvkey fyear at roacurrent lev aqc) gen(sample)
+
+duplicates tag gvkey fyear, gen(dup)
+drop if dup > 0 & sample == 0
+
+isid gvkey fyear
+
+mat tab1F = (., ., ., ., ., ., .)
+foreach var of varlist fyear at roacurrent lev aqc {
+	summ `var' if sample == 1, d
+	ttest `var', by(sample)
+	mat tab1F = (tab1F \ r(mean), r(t), r(min), r(p25), r(p50), r(p75), r(max))
+
+	summ `var' if sample == 1, d
+	mat tab1F = (tab1F \ r(mean), ., r(min), r(p25), r(p50), r(p75), r(max))
+}
+
+drop _all
+mat rownames tab1F = "Variable" "Year" "Year" "Total_Assets" "Total_Assets" ///
+					"ROA" "ROA" "Leverage" "Leverage" "Acquisitions" "Acquisitions"
+svmat2 tab1F, names(mean t_stat min p25 p50 p75 max) rnames(rowname)
+replace rowname = subinstr(rowname, "_", " ", .)
+
+order rowname mean t_stat min p25 p50 p75 max
+gsort rowname -t_stat
+tostring mean min p25 p50 p75 max, replace format(%9.2f)
+tostring t_stat, replace format(%9.4f)
+
+foreach var of varlist mean min p25 p50 p75 max {
+	replace `var' = "$" + `var' if rowname == "Total Assets"
+	replace `var' = "%" + `var' if rowname == "ROA"
+}
+
+
+export excel "$dropbox/draft_tables.xls", sheet("1.F") sheetrep first(var)
+
+restore
+
+} // end Panel F ---------------------------------------------------------------
 
 keep if internal == 1
 	gen missing_job_title = job_title == ""
@@ -1177,7 +1241,7 @@ foreach subpanel in "d" "e" "f" { // panels for lower, middle, upper management 
 			if "`subpanel'" == "d" keep if mgmt_class == "Lower"
 			if "`subpanel'" == "e" keep if mgmt_class == "Middle"
 			if "`subpanel'" == "f" keep if mgmt_class == "Upper"
-		
+
 			if `section' == 2 keep if wb_raised_issue_internally == "YES"
 			if `section' == 3 keep if wb_raised_issue_internally == "NO"
 
