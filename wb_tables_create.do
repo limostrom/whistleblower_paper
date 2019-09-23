@@ -19,7 +19,7 @@ local run_1D 0
 local run_1E 0
 local run_2 0
 local run_3A 0
-local run_3B 0
+local run_3B 1
 local run_3CD 0
 local run_4A 0
 local run_4BC 0
@@ -271,24 +271,25 @@ if `run_1E' == 1 | `run_all' == 1 {
 include "$repo/FamaFrench12.do"
 include "$repo/assign_missing_famafrench.do"
 
-egen tag_firm = tag(gvkey)
-
 preserve
 bys gvkey: ereplace famafrench12 = mode(famafrench12)
-tab famafrench12 if tag_firm & internal == 1, matcell(m5c2) matrow(m5c1)
-mat m5 = (m5c1, m5c2)
-	mat list m5
+keep if internal == 1 & gvkey != .
+	egen tag_firm = tag(gvkey)
+	egen tag_law = tag(caption)
+collapse (sum) tag_firm tag_law, by(famafrench12)
+mkmat famafrench12 tag_firm tag_law, mat(ff)
 
 drop _all
-svmat2 m5, names(industry allegations)
+svmat2 ff, names(industry firms lawsuits)
 	assert industry != 8
 	set obs 12
 	replace industry = 8 if industry == .
-	replace allegations = 0 if allegations == .
+	replace firms = 0 if firms == .
+	replace lawsuits = 0 if lawsuits == .
 	sort industry
 
 	local leftcol "industry" // need to set these locals for add_total_row_and_pct_col_to_table.do
-	local tab_cols "allegations" // the columns you need to calculate "% of total" for
+	local tab_cols "firms lawsuits" // the columns you need to calculate "% of total" for
 	include "$repo/add_total_row_and_pct_col_to_table.do"
 
 export excel "$dropbox/draft_tables.xls", sheet("1.E") sheetrep first(var)
@@ -833,25 +834,205 @@ if `run_3ANew' == 1 | `run_all' == 1{
 * Panel B
 if `run_3B' == 1 | `run_all' == 1 {
 *------------------------------------
+
+local int_channels "int_auditor billing colleague direct_supervisor hotline hr legalcompliance relevantdirector topmanager"
+local ext_channels "ext_auditor gov ext_to_courts"
+local ave_stlmts_int ""
+foreach channel of local int_channels {
+	local ave_stlmts_int "`ave_stlmts_int' ave_stlmt_`channel' = stlmt_`channel'"
+}
+local ave_stlmts_ext ""
+foreach channel of local ext_channels {
+	local ave_stlmts_ext "`ave_stlmts_ext' ave_stlmt_`channel' = stlmt_`channel'"
+}
+
+foreach var in `int_channels' `ext_channels' {
+	gen stlmt_`var' = settlement if (`var' > 0)
+	gen stld_`var' = settled if (`var' > 0)
+}
+*========== Table 3Ba (full & public, side by side) ==========*
 * --- Internal Reporting Channel --- *
-	foreach subpanel in "a" "b"{  //a is full sample, b is public-firm only
-		local int_channels "int_auditor billing colleague direct_supervisor hotline hr legalcompliance relevantdirector topmanager"
-		local ext_channels "ext_auditor gov ext_to_courts"
-		local ave_stlmts_int ""
-		foreach channel of local int_channels {
-			local ave_stlmts_int "`ave_stlmts_int' ave_stlmt_`channel' = stlmt_`channel'"
+preserve // -- first do right side of table, "Public Firms"
+	keep if gvkey != .
+	collapse (sum) `int_channels' stlmt* (mean)  stld_* `ave_stlmts_int', fast
+		drop stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor
+		drop stld_gov stld_ext_to_courts stld_ext_auditor
+	foreach var in `int_channels' {
+		ren `var' n`var' // for reshape
+	}
+	gen i = _n
+	reshape long n  stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
+	egen obsP = total(n) // total observations not missing
+	ren n allegationsP
+	ren stlmt_ settlementP
+	ren stld_ settledP
+		replace settledP = settledP * 100
+	ren ave_stlmt_ ave_settlementP
+	tempfile public3B1
+	save `public3B1', replace
+restore
+preserve // -- now do left side of table, "All Firms"
+	collapse (sum) `int_channels' stlmt* (mean) stld_* `ave_stlmts_int', fast
+		drop stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor
+	foreach var in `int_channels' {
+		ren `var' n`var' // for reshape
+	}
+	gen i = _n
+	reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
+	gsort -n
+	egen obsA = total(n)
+	ren n allegationsA
+	ren stlmt_ settlementA
+	ren stld_ settledA
+		replace settledA = settledA * 100
+	ren ave_stlmt_ ave_settlementA
+	merge 1:1 channel using `public3B1', nogen
+	gsort -allegationsA -allegationsP
+		br
+		pause
+	mkmat obsA allegationsA settledA ave_settlementA settlementA ///
+			obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(channel)
+restore
+
+*store local string to input other all[] rows into the tab3 matrix
+	local other_rows ""
+	forval x=1/9 {
+		local other_rows "`other_rows' ., all[`x',2..5], .,all[`x',7..10], 1" /* leave obs empty, fill in others */
+		if `x' < 9 local other_rows "`other_rows' \ " // add line break if not end
+	}
+mat tab3Ba1 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
+			`other_rows')
+
+mat rownames tab3Ba1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
+				"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Billing" ///
+				"Hotline" "Internal_Auditor"
+mat list tab3Ba1
+
+* --- External Reporting Channel --- *
+forval section = 2/3 {
+	preserve // -- first do right side of table, "Public Firms"
+		keep if gvkey != .
+		
+		if `section' == 2 keep if wb_raised_issue_internally == "YES"
+		if `section' == 3 keep if wb_raised_issue_internally == "NO"
+
+		collapse (sum) `ext_channels' stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor ///
+				 (mean) stld_gov stld_ext_to_courts stld_ext_auditor `ave_stlmts_ext', fast
+		foreach var in `ext_channels' {
+			ren `var' n`var' // for reshape
 		}
-		local ave_stlmts_ext ""
-		foreach channel of local ext_channels {
-			local ave_stlmts_ext "`ave_stlmts_ext' ave_stlmt_`channel' = stlmt_`channel'"
+		gen i = _n
+		reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
+		egen obsP = total(n) // total observations not missing
+		ren n allegationsP
+		ren stlmt_ settlementP
+		ren ave_stlmt_ ave_settlementP
+		ren stld_ settledP
+			replace settledP = settledP * 100
+		tempfile public3B`section'
+		save `public3B`section'', replace
+	restore
+	preserve // -- now do left side of table, "All Firms"
+		if `section' == 2 keep if wb_raised_issue_internally == "YES"
+		if `section' == 3 keep if wb_raised_issue_internally == "NO"
+
+		collapse (sum) `ext_channels' stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor ///
+				 (mean) stld_gov stld_ext_to_courts stld_ext_auditor `ave_stlmts_ext', fast
+		foreach var in `ext_channels' {
+			ren `var' n`var' // for reshape
 		}
-		foreach var in `int_channels' `ext_channels' {
-			gen stld_`var' = settled if (`var' > 0)
+		gen i = _n
+		reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
+		gsort -n
+		egen obsA = total(n)
+		ren n allegationsA
+		ren stlmt_ settlementA
+		ren stld_ settledA
+			replace settledA = settledA * 100
+		ren ave_stlmt_ ave_settlementA
+		merge 1:1 channel using `public3B`section'', nogen
+		gsort -allegationsA -allegationsP
+			br
+			*pause
+		mkmat obsA allegationsA settledA ave_settlementA settlementA ///
+				obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(channel)
+	restore
+
+	*store local string to input other all[] rows into the tab3 matrix
+		local other_rows ""
+		forval x=1/3 {
+			local other_rows "`other_rows' ., all[`x',2..5], ., all[`x',7..10], `section'" /* leave obs empty, fill in others */
+			if `x' < 3 local other_rows "`other_rows' \ " // add line break if not end
 		}
+	mat tab3Ba`section' = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., `section' \ /* put total non-missing obs on first line only */ ///
+				`other_rows')
+	mat list tab3Ba`section'
+	if `section' == 2 {
+		mat tab3Ba2 = (., ., ., ., ., ., ., ., ., ., 2 \ tab3Ba2)
+		mat rownames tab3Ba2 = "External_Reporting_Channel" "Internal_Reporters" ///
+								"Straight_to_Court_System" "Government_Agency" "External_Auditor"
+		mat list tab3Ba2
+	}
+	if `section' == 3 {
+		mat rownames tab3Ba3 = "External_Only_Reporters" "Straight_to_Court_System" ///
+								"Government_Agency" "External_Auditor"
+		mat list tab3Ba3
+	}
+}
+*--------------------------------------------
+* Now export to excel workbook
+preserve
+	drop _all
+	mat full_tab3Ba = (tab3Ba1 \ tab3Ba2 \ tab3Ba3)
+	svmat2 full_tab3Ba, names(obsA allegationsA settledA ave_settlementA settlementA ///
+								obsP allegationsP settledP ave_settlementP settlementP subtable) rnames(rowname)
+	*Calculate %s of Total by subtable instead of overall // -------------------
+	foreach col in "allegationsA" "allegationsP" {	
+		bys subtable: egen tot = total(`col') // total cases, settlements, etc. to calculate % of total
+		gen pct = `col'/tot*100 // "% of Total"
+
+		tostring pct, gen(`col'_pct_str) format(%9.1f) force // percents for table
+		replace `col'_pct_str = `col'_pct_str + "%" if !inlist(`col'_pct_str,".","0") // so the table can be pasted straight into word
+
+		drop tot pct
+	}
+	foreach col of varlist settled? {
+		tostring `col', gen(`col'_pct_str) format(%9.1f) force // percents for table
+		replace `col'_pct_str = `col'_pct_str + "%" if !inlist(`col'_pct_str,".","0")
+		drop `col'
+	}
+	* end %s of Total // -------------------------------------------------------
+	order rowname obsA allegationsA allegationsA_pct_str settledA_pct_str ave_settlementA settlementA ///
+				obsP allegationsP allegationsP_pct_str settledP_pct_str ave_settlementP settlementP
+	replace rowname = "    " + rowname if ///
+		!inlist(rowname, "Internal_Reporting_Channel", "External_Reporting_Channel", ///
+								"Internal_Reporters", "External_Only_Reporters")
+	replace rowname = "  " + rowname if inlist(rowname, "Internal_Reporters", "External_Only_Reporters")
+	replace rowname = subinstr(rowname, "_", " ", .)
+	
+	foreach var of varlist *settlement? {
+		tostring `var', replace force format(%9.1f)
+		replace `var' = "$" + `var' if `var' != "."
+	}
+		
+	foreach var of varlist *_pct_str *settlement? {
+		replace `var' = "" if `var' == "."
+	}
+	drop subtable
+	br
+	*pause
+	export excel "$dropbox/draft_tables.xls", sheet("3.Ba") sheetrep first(var)
+restore
+
+
+*========== Table 3Bbc (settled & not settled, full then public only) ==========*
+* --- Internal Reporting Channel --- *
+	foreach subpanel in "b" "c"{  //b is full sample, c is public-firm only
 
 	preserve // -- first do right side of table, "Settled"
-		if "`subpanel'" == "b" keep if gvkey != .
+		if "`subpanel'" == "c" keep if gvkey != .
 		keep if settled == 1
+		drop stlmt*
 		foreach var in `int_channels' {
 			gen stlmt_`var' = settlement if (`var' > 0)
 		}
@@ -870,8 +1051,9 @@ if `run_3B' == 1 | `run_all' == 1 {
 	restore
 
 	preserve // -- now do left side of table, "Not settled"
-		if "`subpanel'" == "b" keep if gvkey != .
+		if "`subpanel'" == "c" keep if gvkey != .
 		keep if settled == 0
+		drop stlmt*
 		foreach var in `int_channels'{
 			gen stlmt_`var' = settlement if (`var' > 0)
 		}
@@ -892,7 +1074,7 @@ if `run_3B' == 1 | `run_all' == 1 {
 		save `all3B`subpanel'1', replace
 	restore
 	preserve
-		if "`subpanel'" == "b" keep if gvkey != .
+		if "`subpanel'" == "c" keep if gvkey != .
 		collapse (sum) `int_channels' (mean) stld_*, fast
 		foreach var in `int_channels' {
 			ren `var' n`var' // for reshape
@@ -919,23 +1101,24 @@ if `run_3B' == 1 | `run_all' == 1 {
 	mat tab3B`subpanel'1 = (all[1,1], ., all[1,3], ., all[1,5], ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 	mat list tab3B`subpanel'1
-	if "`subpanel'" == "a" {
+	if "`subpanel'" == "b" {
 		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
 				"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Billing" ///
 				"Hotline" "Internal_Auditor"
 	}
-	if "`subpanel'" == "b" {
+	if "`subpanel'" == "c" {
 		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
 				"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Hotline" ///
 				"Internal_Auditor" "Billing"
 	}
 	mat list tab3B`subpanel'1
-*pause
+
 * --- External Reporting Channel --- *
 	forval section = 2/3 {
 		preserve // -- first do right side of table, "Settled"
-			if "`subpanel'" == "b" keep if gvkey != .
+			if "`subpanel'" == "c" keep if gvkey != .
 			keep if settled == 1
+			drop stlmt*
 			foreach var in `ext_channels' {
 				gen stlmt_`var' = settlement if (`var' > 0)
 			}
@@ -956,7 +1139,7 @@ if `run_3B' == 1 | `run_all' == 1 {
 			save `settled3B`subpanel'`section'', replace
 		restore
 		preserve // -- now do left side of table, "Not settled"
-			if "`subpanel'" == "b" keep if gvkey != .
+			if "`subpanel'" == "c" keep if gvkey != .
 			keep if settled == 0
 			if `section' == 2 keep if wb_raised_issue_internally == "YES"
 			if `section' == 3 keep if wb_raised_issue_internally == "NO"
@@ -977,7 +1160,7 @@ if `run_3B' == 1 | `run_all' == 1 {
 			save `all3B`subpanel'`section'', replace 
 		restore
 		preserve // Now do total observations and % settled 
-			if "`subpanel'" == "b" keep if gvkey != .
+			if "`subpanel'" == "c" keep if gvkey != .
 			if `section' == 2 keep if wb_raised_issue_internally == "YES"
 			if `section' == 3 keep if wb_raised_issue_internally == "NO"
 			collapse (sum) `ext_channels' (mean) stld_*, fast
@@ -1063,8 +1246,201 @@ preserve
 	*pause
 	export excel "$dropbox/draft_tables.xls", sheet("3.B`subpanel'") sheetrep first(var)
 restore
-drop stld_*
-	} //loop over subpanels a and b
+
+	} //loop over subpanels b and c
+
+*========== Table 3Bdef (full & public, by management class) ==========*
+* --- Internal Reporting Channel --- *
+foreach subpanel in "d" "e" "f" { // panels for lower, middle, upper management classes
+	preserve // -- first do right side of table, "Public Firms"
+		if "`subpanel'" == "d" keep if mgmt_class == "Lower"
+		if "`subpanel'" == "e" keep if mgmt_class == "Middle"
+		if "`subpanel'" == "f" keep if mgmt_class == "Upper"
+
+		keep if gvkey != .
+		collapse (sum) `int_channels' stlmt* (mean)  stld_* `ave_stlmts_int', fast
+			drop stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor
+			drop stld_gov stld_ext_to_courts stld_ext_auditor
+		foreach var in `int_channels' {
+			ren `var' n`var' // for reshape
+		}
+		gen i = _n
+		reshape long n  stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
+		egen obsP = total(n) // total observations not missing
+		ren n allegationsP
+		ren stlmt_ settlementP
+		ren stld_ settledP
+			replace settledP = settledP * 100
+		ren ave_stlmt_ ave_settlementP
+		tempfile public3B`subpanel'1
+		save `public3B`subpanel'1', replace
+	restore
+	preserve // -- now do left side of table, "All Firms"
+		if "`subpanel'" == "d" keep if mgmt_class == "Lower"
+		if "`subpanel'" == "e" keep if mgmt_class == "Middle"
+		if "`subpanel'" == "f" keep if mgmt_class == "Upper"
+
+		collapse (sum) `int_channels' stlmt* (mean) stld_* `ave_stlmts_int', fast
+			drop stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor
+		foreach var in `int_channels' {
+			ren `var' n`var' // for reshape
+		}
+		gen i = _n
+		reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
+		gsort -n
+		egen obsA = total(n)
+		ren n allegationsA
+		ren stlmt_ settlementA
+		ren stld_ settledA
+			replace settledA = settledA * 100
+		ren ave_stlmt_ ave_settlementA
+		merge 1:1 channel using `public3B`subpanel'1', nogen
+		gsort -allegationsA -allegationsP
+			br
+			pause
+		mkmat obsA allegationsA settledA ave_settlementA settlementA ///
+				obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(channel)
+	restore
+
+	*store local string to input other all[] rows into the tab3 matrix
+		local other_rows ""
+		forval x=1/9 {
+			local other_rows "`other_rows' ., all[`x',2..5], .,all[`x',7..10], 1" /* leave obs empty, fill in others */
+			if `x' < 9 local other_rows "`other_rows' \ " // add line break if not end
+		}
+	mat tab3B`subpanel'1 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
+				`other_rows')
+
+	mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
+					"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Billing" ///
+					"Hotline" "Internal_Auditor"
+	mat list tab3B`subpanel'1
+
+	* --- External Reporting Channel --- *
+	forval section = 2/3 {
+		preserve // -- first do right side of table, "Public Firms"
+			keep if gvkey != .
+			
+			if "`subpanel'" == "d" keep if mgmt_class == "Lower"
+			if "`subpanel'" == "e" keep if mgmt_class == "Middle"
+			if "`subpanel'" == "f" keep if mgmt_class == "Upper"
+
+			if `section' == 2 keep if wb_raised_issue_internally == "YES"
+			if `section' == 3 keep if wb_raised_issue_internally == "NO"
+
+			collapse (sum) `ext_channels' stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor ///
+					 (mean) stld_gov stld_ext_to_courts stld_ext_auditor `ave_stlmts_ext', fast
+			foreach var in `ext_channels' {
+				ren `var' n`var' // for reshape
+			}
+			gen i = _n
+			reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
+			egen obsP = total(n) // total observations not missing
+			ren n allegationsP
+			ren stlmt_ settlementP
+			ren ave_stlmt_ ave_settlementP
+			ren stld_ settledP
+				replace settledP = settledP * 100
+			tempfile public3B`subpanel'`section'
+			save `public3B`subpanel'`section'', replace
+		restore
+		preserve // -- now do left side of table, "All Firms"
+
+			if "`subpanel'" == "d" keep if mgmt_class == "Lower"
+			if "`subpanel'" == "e" keep if mgmt_class == "Middle"
+			if "`subpanel'" == "f" keep if mgmt_class == "Upper"
+		
+			if `section' == 2 keep if wb_raised_issue_internally == "YES"
+			if `section' == 3 keep if wb_raised_issue_internally == "NO"
+
+			collapse (sum) `ext_channels' stlmt_gov stlmt_ext_to_courts stlmt_ext_auditor ///
+					 (mean) stld_gov stld_ext_to_courts stld_ext_auditor `ave_stlmts_ext', fast
+			foreach var in `ext_channels' {
+				ren `var' n`var' // for reshape
+			}
+			gen i = _n
+			reshape long n stld_ ave_stlmt_ stlmt_, i(i) j(channel) string
+			gsort -n
+			egen obsA = total(n)
+			ren n allegationsA
+			ren stlmt_ settlementA
+			ren stld_ settledA
+				replace settledA = settledA * 100
+			ren ave_stlmt_ ave_settlementA
+			merge 1:1 channel using `public3B`subpanel'`section'', nogen
+			gsort -allegationsA -allegationsP
+				br
+				*pause
+			mkmat obsA allegationsA settledA ave_settlementA settlementA ///
+					obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(channel)
+		restore
+
+		*store local string to input other all[] rows into the tab3 matrix
+			local other_rows ""
+			forval x=1/3 {
+				local other_rows "`other_rows' ., all[`x',2..5], ., all[`x',7..10], `section'" /* leave obs empty, fill in others */
+				if `x' < 3 local other_rows "`other_rows' \ " // add line break if not end
+			}
+		mat tab3B`subpanel'`section' = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., `section' \ /* put total non-missing obs on first line only */ ///
+					`other_rows')
+		mat list tab3B`subpanel'`section'
+		if `section' == 2 {
+			mat tab3B`subpanel'2 = (., ., ., ., ., ., ., ., ., ., 2 \ tab3B`subpanel'2)
+			mat rownames tab3B`subpanel'2 = "External_Reporting_Channel" "Internal_Reporters" ///
+									"Straight_to_Court_System" "Government_Agency" "External_Auditor"
+			mat list tab3B`subpanel'2
+		}
+		if `section' == 3 {
+			mat rownames tab3B`subpanel'3 = "External_Only_Reporters" "Straight_to_Court_System" ///
+									"Government_Agency" "External_Auditor"
+			mat list tab3B`subpanel'3
+		}
+	}
+	*--------------------------------------------
+	* Now export to excel workbook
+	preserve
+		drop _all
+		mat full_tab3B`subpanel' = (tab3B`subpanel'1 \ tab3B`subpanel'2 \ tab3B`subpanel'3)
+		svmat2 full_tab3B`subpanel', names(obsA allegationsA settledA ave_settlementA settlementA ///
+									obsP allegationsP settledP ave_settlementP settlementP subtable) rnames(rowname)
+		*Calculate %s of Total by subtable instead of overall // -------------------
+		foreach col in "allegationsA" "allegationsP" {	
+			bys subtable: egen tot = total(`col') // total cases, settlements, etc. to calculate % of total
+			gen pct = `col'/tot*100 // "% of Total"
+
+			tostring pct, gen(`col'_pct_str) format(%9.1f) force // percents for table
+			replace `col'_pct_str = `col'_pct_str + "%" if !inlist(`col'_pct_str,".","0") // so the table can be pasted straight into word
+
+			drop tot pct
+		}
+		foreach col of varlist settled? {
+			tostring `col', gen(`col'_pct_str) format(%9.1f) force // percents for table
+			replace `col'_pct_str = `col'_pct_str + "%" if !inlist(`col'_pct_str,".","0")
+			drop `col'
+		}
+		* end %s of Total // -------------------------------------------------------
+		order rowname obsA allegationsA allegationsA_pct_str settledA_pct_str ave_settlementA settlementA ///
+					obsP allegationsP allegationsP_pct_str settledP_pct_str ave_settlementP settlementP
+		replace rowname = "    " + rowname if ///
+			!inlist(rowname, "Internal_Reporting_Channel", "External_Reporting_Channel", ///
+									"Internal_Reporters", "External_Only_Reporters")
+		replace rowname = "  " + rowname if inlist(rowname, "Internal_Reporters", "External_Only_Reporters")
+		replace rowname = subinstr(rowname, "_", " ", .)
+		
+		foreach var of varlist *settlement? {
+			tostring `var', replace force format(%9.1f)
+			replace `var' = "$" + `var' if `var' != "."
+		}
+			
+		foreach var of varlist *_pct_str *settlement? {
+			replace `var' = "" if `var' == "."
+		}
+		drop subtable
+		br
+		*pause
+		export excel "$dropbox/draft_tables.xls", sheet("3.B`subpanel'") sheetrep first(var)
+	restore
+} // loop over subpanels def
 } // end Panel B ---------------------------------------------------------------
 
 *------------------------------------
@@ -1429,6 +1805,7 @@ if `run_4BC' == 1 | `run_all' == 1 {
 foreach panel in "B" "C" {   //Nearly identi panels, for all/public firm samples
 	foreach var of varlist response_* {
 	local response = substr("`var'", 10, .)
+	cap drop stlmt* stld*
 	gen stld_`response' = settled if (`var' > 0)
 	}
 	preserve // -- first do right side of table, "settled"
@@ -1500,7 +1877,7 @@ foreach panel in "B" "C" {   //Nearly identi panels, for all/public firm samples
 	mat rownames tab4`panel'1 = "Response_to_Allegation" "Ignored" "Cover_Up" "Internal_Investigation" "None_Mentioned"
 
 * --- Firm Retaliation Against Whistleblower --- *
-	drop stld*
+	cap drop stld* stlmt*
 	foreach var of varlist retaliation_* {
 		local retaliation = substr("`var'", 13, .)
 		gen stld_`retaliation' = settled if (`var' > 0)
@@ -1574,7 +1951,7 @@ foreach panel in "B" "C" {   //Nearly identi panels, for all/public firm samples
 	mat list tab4`panel'2
 	mat rownames tab4`panel'2 = "Retaliation_Against_WB" "Fired" "Harassed" "Quit" "Threat" ///
 				"Demotion" "Suspension" "Lawsuit" "None_Mentioned"
-	drop stld_*
+	cap drop stld_*
 
 *--------------------------------------------
 * Now export to excel workbook
@@ -1797,8 +2174,8 @@ foreach panel in "D" "E" "F" { // --- These panels are nearly identical, just fo
 	cap drop stlmt_* stld_*
 	foreach var of varlist response_* {
 		local response = substr("`var'", 10, .)
-		gen stlmt_`response' = settlement * (`var' > 0)
-		gen stld_`response' = settled * (`var' > 0)
+		gen stlmt_`response' = settlement if (`var' > 0)
+		gen stld_`response' = settled if (`var' > 0)
 	}
 	preserve // -- first do Public firms
 		if "`panel'" == "D" keep if mgmt_class == "Lower"
@@ -1867,11 +2244,11 @@ foreach panel in "D" "E" "F" { // --- These panels are nearly identical, just fo
 	}
 
 * --- Firm Retaliation Against Whistleblower --- *
-	drop stlmt* stld_*
+	cap drop stlmt* stld_*
 	foreach var of varlist retaliation_* {
 		local retaliation = substr("`var'", 13, .)
-		gen stlmt_`retaliation' = settlement * (`var' > 0)
-		gen stld_`retaliation' = settled * (`var' > 0)
+		gen stlmt_`retaliation' = settlement if (`var' > 0)
+		gen stld_`retaliation' = settled if (`var' > 0)
 	}
 	preserve // -- first do public firms
 		if "`panel'" == "D" keep if mgmt_class == "Lower"
