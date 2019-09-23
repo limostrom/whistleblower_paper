@@ -406,8 +406,14 @@ replace wb_raised_issue_internally = "NO" if inlist(wb_raised_issue_internally, 
 
 *Changes to internal reporting channels
 gen top_management = topmanager == 1 | relevantdirector == 1
-drop topmanager relevantdirector
 replace legalcompliance = 1 if billing == 1 & legalcompliance == 0
+
+*Changes to reporting channels specifically for upper management
+replace top_management = topmanager ==1 | relevantdirector == 1 | direct_supervisor == 1 | colleague == 1 if mgmt_class == "Upper"
+drop topmanager relevantdirector
+replace direct_supervisor = 0 if top_management ==1 & mgmt_class == "Upper"
+replace colleague = 0 if top_management == 1 & mgmt_class == "Upper"
+	pause
 
 *Reporting channels, responses, and retaliations
 	egen n_reports = rowtotal(auditor colleague direct_supervisor gov hotline hr ///

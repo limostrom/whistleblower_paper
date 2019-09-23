@@ -905,6 +905,7 @@ local ave_stlmts_int ""
 foreach channel of local int_channels {
 	local ave_stlmts_int "`ave_stlmts_int' ave_stlmt_`channel' = stlmt_`channel'"
 }
+
 local ave_stlmts_ext ""
 foreach channel of local ext_channels {
 	local ave_stlmts_ext "`ave_stlmts_ext' ave_stlmt_`channel' = stlmt_`channel'"
@@ -1388,8 +1389,8 @@ foreach subpanel in "d" "e" "f" { // panels for lower, middle, upper management 
 									"Legal_Compliance" "Colleague" "HR" "Hotline" "Internal_Auditor"
 	}
 	if "`subpanel'" == "f" {
-		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Management"  ///
-									"Colleague" "Legal_Compliance" "HR" "Hotline" "Internal_Auditor"
+		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Top_Management" "Legal_Compliance" "HR" ///
+										"Hotline" "Internal_Auditor" " " " "
 	}
 
 	* --- External Reporting Channel --- *
