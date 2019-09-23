@@ -404,9 +404,14 @@ replace fyear = year(received_date) if fyear == .
 *Naming raised internally consistently
 replace wb_raised_issue_internally = "NO" if inlist(wb_raised_issue_internally, ".", "", "NO ", " ") // just one more time for good measure??
 
+*Changes to internal reporting channels
+gen top_management = topmanager == 1 | relevantdirector == 1
+drop topmanager relevantdirector
+replace legalcompliance = 1 if billing == 1 & legalcompliance == 0
+
 *Reporting channels, responses, and retaliations
-	egen n_reports = rowtotal(auditor billing colleague direct_supervisor gov hotline hr ///
-								legalcompliance relevantdirector topmanager)
+	egen n_reports = rowtotal(auditor colleague direct_supervisor gov hotline hr ///
+								legalcompliance top_management)
 
 	egen n_responses = rowtotal(response_coverup response_ignored response_int_inv)
 		replace n_responses = 0 if n_responses == .
@@ -438,6 +443,8 @@ replace reason_not_raised_internally = "" if internal != 1 | wb_raised_issue_int
 #delimit cr
 fre wb_raised_issue_internally
 fre reason_not_raised
+
+
 
 
 /*Silenced because only need to do it sometimes

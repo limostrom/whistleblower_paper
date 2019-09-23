@@ -26,7 +26,7 @@ local run_4BC 0
 local run_4DEF 0
 local run_all 0
 local run_4BOld 0
-local run_3ANew 1
+local run_3ANew 0
 *---------------------------
 global name dyu
 *global name lmostrom
@@ -835,7 +835,7 @@ if `run_3ANew' == 1 | `run_all' == 1{
 if `run_3B' == 1 | `run_all' == 1 {
 *------------------------------------
 
-local int_channels "int_auditor billing colleague direct_supervisor hotline hr legalcompliance relevantdirector topmanager"
+local int_channels "int_auditor colleague direct_supervisor hotline hr legalcompliance top_management"
 local ext_channels "ext_auditor gov ext_to_courts"
 local ave_stlmts_int ""
 foreach channel of local int_channels {
@@ -852,6 +852,7 @@ foreach var in `int_channels' `ext_channels' {
 }
 *========== Table 3Ba (full & public, side by side) ==========*
 * --- Internal Reporting Channel --- *
+
 preserve // -- first do right side of table, "Public Firms"
 	keep if gvkey != .
 	collapse (sum) `int_channels' stlmt* (mean)  stld_* `ave_stlmts_int', fast
@@ -889,23 +890,22 @@ preserve // -- now do left side of table, "All Firms"
 	merge 1:1 channel using `public3B1', nogen
 	gsort -allegationsA -allegationsP
 		br
-		pause
+		*pause
 	mkmat obsA allegationsA settledA ave_settlementA settlementA ///
 			obsP allegationsP settledP ave_settlementP settlementP, mat(all) rownames(channel)
 restore
 
 *store local string to input other all[] rows into the tab3 matrix
 	local other_rows ""
-	forval x=1/9 {
+	forval x=1/7 {
 		local other_rows "`other_rows' ., all[`x',2..5], .,all[`x',7..10], 1" /* leave obs empty, fill in others */
-		if `x' < 9 local other_rows "`other_rows' \ " // add line break if not end
+		if `x' < 7 local other_rows "`other_rows' \ " // add line break if not end
 	}
 mat tab3Ba1 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 
-mat rownames tab3Ba1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
-				"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Billing" ///
-				"Hotline" "Internal_Auditor"
+mat rownames tab3Ba1 = "Internal_Reporting_Channel" "Top_Management" "Direct_Supervisor"  ///
+				"Colleague" "Legal_Compliance" "HR" "Hotline" "Internal_Auditor"
 mat list tab3Ba1
 
 * --- External Reporting Channel --- *
@@ -978,7 +978,10 @@ forval section = 2/3 {
 								"Government_Agency" "External_Auditor"
 		mat list tab3Ba3
 	}
-}
+
+
+} //looping over section 2 & 3
+
 *--------------------------------------------
 * Now export to excel workbook
 preserve
@@ -1027,7 +1030,7 @@ restore
 
 *========== Table 3Bbc (settled & not settled, full then public only) ==========*
 * --- Internal Reporting Channel --- *
-	foreach subpanel in "b" "c"{  //b is full sample, c is public-firm only
+foreach subpanel in "b" "c"{  //b is full sample, c is public-firm only
 
 	preserve // -- first do right side of table, "Settled"
 		if "`subpanel'" == "c" keep if gvkey != .
@@ -1088,28 +1091,28 @@ restore
 		merge 1:1 channel using `all3B`subpanel'1', nogen 
 		gsort -allegationsNS -allegationsS
 			br
-			*pause
+			pause  //check for order of row names
 		mkmat obsA settledA obsNS allegationsNS obsS allegationsS ave_settlementS settlementS, mat(all) rownames(channel)
 	restore
 
 *store local string to input other all[] rows into the tab3 matrix
 	local other_rows ""
-	forval x=1/9 {
+	forval x=1/7 {
 		local other_rows "`other_rows' ., all[`x',2], ., all[`x',4], .,all[`x',6..8], 1" /* leave obs empty, fill in others */
-		if `x' < 9 local other_rows "`other_rows' \ " // add line break if not end
+		if `x' < 7 local other_rows "`other_rows' \ " // add line break if not end
 	}
 	mat tab3B`subpanel'1 = (all[1,1], ., all[1,3], ., all[1,5], ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
 			`other_rows')
 	mat list tab3B`subpanel'1
+
 	if "`subpanel'" == "b" {
-		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
-				"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Billing" ///
-				"Hotline" "Internal_Auditor"
+		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Top_Management" "Direct_Supervisor" ///
+				"Colleague" "Legal_Compliance" "HR" "Hotline" "Internal_Auditor"
 	}
 	if "`subpanel'" == "c" {
-		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
-				"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Hotline" ///
-				"Internal_Auditor" "Billing"
+		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Top_Management" ///
+				"Direct_Supervisor" "Legal_Compliance" "Colleague" "HR" "Hotline" ///
+				"Internal_Auditor"
 	}
 	mat list tab3B`subpanel'1
 
@@ -1247,7 +1250,7 @@ preserve
 	export excel "$dropbox/draft_tables.xls", sheet("3.B`subpanel'") sheetrep first(var)
 restore
 
-	} //loop over subpanels b and c
+} //loop over subpanels b and c
 
 *========== Table 3Bdef (full & public, by management class) ==========*
 * --- Internal Reporting Channel --- *
@@ -1304,17 +1307,26 @@ foreach subpanel in "d" "e" "f" { // panels for lower, middle, upper management 
 
 	*store local string to input other all[] rows into the tab3 matrix
 		local other_rows ""
-		forval x=1/9 {
+		forval x=1/7 {
 			local other_rows "`other_rows' ., all[`x',2..5], .,all[`x',7..10], 1" /* leave obs empty, fill in others */
-			if `x' < 9 local other_rows "`other_rows' \ " // add line break if not end
+			if `x' < 7 local other_rows "`other_rows' \ " // add line break if not end
 		}
 	mat tab3B`subpanel'1 = (all[1,1], ., ., ., ., all[1,6], ., ., ., ., 1 \ /* put total non-missing obs on first line only */ ///
 				`other_rows')
 
-	mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Manager" ///
-					"Relevant_Director" "Colleague" "Legal_Compliance" "HR" "Billing" ///
-					"Hotline" "Internal_Auditor"
-	mat list tab3B`subpanel'1
+	if "`subpanel'" == "d" {
+		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Top_Management" "Direct_Supervisor" ///
+									"Colleague" "Legal_Compliance" "HR" "Hotline" "Internal_Auditor"
+	}
+
+	if "`subpanel'" == "e"{
+		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Top_Management" "Direct_Supervisor" ///
+									"Legal_Compliance" "Colleague" "HR" "Hotline" "Internal_Auditor"
+	}
+	if "`subpanel'" == "f" {
+		mat rownames tab3B`subpanel'1 = "Internal_Reporting_Channel" "Direct_Supervisor" "Top_Management"  ///
+									"Colleague" "Legal_Compliance" "HR" "Hotline" "Internal_Auditor"
+	}
 
 	* --- External Reporting Channel --- *
 	forval section = 2/3 {
