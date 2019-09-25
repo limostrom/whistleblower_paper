@@ -371,7 +371,30 @@ if `run_2' == 1 | `run_all' == 1 {
 codebook wb_id
 codebook case_id
 
+*----Aggregate case outcomes-----*
+preserve //----"All firms"
+	collapse (count) allegations = case_id (sum) settlement (mean) settled ave_settlement=settlement
+	egen obsA = total(allegations)
+	ren allegations allegationsA
+	ren settled settledA
+		replace settledA = settledA * 100
+	ren ave_settlement ave_settlementA
+	mkmat obsA allegationsA settledA ave_settlementA settlementA, mat(all)
+restore
+preserve
+	keep if gvkey != . 
+	collapse (count) allegations = case_id (sum) settlement (mean)settled ave_settlement=settlement
+	ren allegations allegationsP
+	ren settlement settlementP
+	ren settled settledP
+		replace settledP = settledP * 100
+	ren ave_settlement ave_settlementP
+	egen obsP = total(allegationsP)
+	mkmat obsP allegationsP settledP ave_settlementP settlementP, mat(public)
+restore
 
+mat tab2total = (all[1,1..5], public[1,1..5])
+mat list tab2total
 * --- Male --- *
 preserve // -- first do left side of table, "All Firms"
 	collapse (count) allegations = case_id (sum) settlement (mean) settled ave_settlement=settlement, by(male)
@@ -531,7 +554,7 @@ mat list tab2E
 * Now export to excel workbook
 preserve
 	drop _all
-	mat full_tab2 = (tab2A \ /*Age - tab2B \ */ tab2C \ tab2D \ tab2E)
+	mat full_tab2 = (tab2total \ tab2A \ /*Age - tab2B \ */ tab2C \ tab2D \ tab2E)
 	svmat2 full_tab2, names(obsA allegationsA settledA ave_settlementA settlementA ///
 							obsP allegationsP settledP ave_settlementP settlementP subtable) rnames(rowname)
 	*Calculate %s of Total by subtable instead of overall // -------------------
