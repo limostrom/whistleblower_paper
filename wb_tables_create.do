@@ -306,6 +306,11 @@ keep if internal == 1 & gvkey != .
 egen tag_firmyr = tag(gvkey fyear)
 keep if tag_firm
 keep gvkey fyear at roacurrent lev aqc
+gen m_a = aqc != .
+ren at at_w
+ren roacurrent roa_w
+ren lev lev_w
+replace at_w = at_w / 1000 // $ Billions
 tempfile sample
 save `sample', replace
 
@@ -316,43 +321,58 @@ isid gvkey fyear
 
 gen roacurrent = ni/at*100
 gen lev = dltt/at
-drop ni dltt indfmt consol popsrc datafmt
+winsor at, gen(at_w) p(0.01)
+	replace at_w = at_w / 1000 // $ Billions
+winsor roacurrent, gen(roa_w) p(0.01)
+winsor lev, gen(lev_w) p(0.01)
+gen m_a = aqc != .
+drop ni dltt at roacurrent lev aqc indfmt consol popsrc datafmt
 destring gvkey, replace
 drop if gvkey == . | fyear == .
 
-append using `sample', keep(gvkey fyear at roacurrent lev aqc) gen(sample)
+append using `sample', keep(gvkey fyear at_w roa_w lev_w m_a) gen(sample)
 
 duplicates tag gvkey fyear, gen(dup)
 drop if dup > 0 & sample == 0
 
 isid gvkey fyear
 
-mat tab1F = (., ., ., ., ., ., .)
-foreach var of varlist fyear at roacurrent lev aqc {
+qui summ at_w if sample == 1
+	mat tab1F = (r(N), ., ., ., ., ., .)
+qui summ at_w if sample == 0
+	mat tab1F = (tab1F, r(N), ., ., ., ., ., ., ., .)
+foreach var of varlist fyear at_w roa_w lev_w m_a {
 	summ `var' if sample == 1, d
-	ttest `var', by(sample)
-	mat tab1F = (tab1F \ r(mean), r(t), r(min), r(p25), r(p50), r(p75), r(max))
+	mat newrow = (r(mean), r(sd), r(min), r(p25), r(p50), r(p75), r(max))
 
-	summ `var' if sample == 1, d
-	mat tab1F = (tab1F \ r(mean), ., r(min), r(p25), r(p50), r(p75), r(max))
+	summ `var' if sample == 0, d
+	mat newrow = (newrow, r(mean), r(sd), r(min), r(p25), r(p50), r(p75), r(max))
+
+	ttest `var', by(sample)
+		local t = r(t)
+		local diff = r(mu_1) - r(mu_2)
+	mat newrow = (newrow, `diff', `t')
+
+	mat tab1F = (tab1F \ newrow)
 }
 
 drop _all
-mat rownames tab1F = "Variable" "Year" "Year" "Total_Assets" "Total_Assets" ///
-					"ROA" "ROA" "Leverage" "Leverage" "Acquisitions" "Acquisitions"
-svmat2 tab1F, names(mean t_stat min p25 p50 p75 max) rnames(rowname)
+mat rownames tab1F = "Header" "Year" "Total_Assets" "ROA" "Leverage" "M&A_Activity"
+svmat2 tab1F, names(meanS stdevS minS p25S p50S p75S maxS ///
+					meanC stdevC minC p25C p50C p75C maxC diff diff_t) rnames(rowname)
 replace rowname = subinstr(rowname, "_", " ", .)
 
-order rowname mean t_stat min p25 p50 p75 max
-gsort rowname -t_stat
-tostring mean min p25 p50 p75 max, replace format(%9.2f)
-tostring t_stat, replace format(%9.4f)
+order rowname meanS stdevS minS p25S p50S p75S maxS ///
+				meanC stdevC minC p25C p50C p75C maxC diff diff_t
+tostring mean? stdev? min? p25? p50? p75? max? diff, replace force format(%9.2f)
+tostring diff_t, replace force format(%9.4f)
 
-foreach var of varlist mean min p25 p50 p75 max {
+foreach var of varlist mean? stdev? min? p25? p50? p75? max? diff {
 	replace `var' = "$" + `var' if rowname == "Total Assets"
-	replace `var' = "%" + `var' if rowname == "ROA"
+	replace `var' = `var' + "%" if rowname == "ROA"
+	if "`var'" != "mean" replace `var' = substr(`var', 1, 4) if rowname == "Year"
+	replace `var' = "" if inlist(`var', "", ".", "$", "%")
 }
-
 
 export excel "$dropbox/draft_tables.xls", sheet("1.F") sheetrep first(var)
 
