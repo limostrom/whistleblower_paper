@@ -267,11 +267,14 @@ restore
 	replace job_title_at_fraud_firm = job_title_at_fraud_firm + "; Government Program Auditor" ///
 		if case_id == 2586 & wb_full_name == "Parikh, Girish"
 
-merge m:1 caption using "$dropbox/total_settlements_from_qtrack.dta", nogen keepus(total_federal_recovery settlement_judgment_date) keep(1 3)
+merge m:1 caption using "$dropbox/total_settlements_from_qtrack.dta", nogen keepus(total_federal_recovery relator_share settlement_judgment_date) keep(1 3)
+	ren relator_share rel_settlement
 	ren total_federal_recovery settlement
 	gen settled = settlement != . & settlement > 0
 	replace settlement = settlement/1000000
 		lab var settlement "Settlement ($ Millions)"
+	replace rel_settlement = rel_settlement/1000000
+		lab var settlement "Relator Share of Settlement ($ Millions)"
 
 
 drop if internal == 0 & wb_raised_issue_internally == "YES"
@@ -413,7 +416,7 @@ replace top_management = topmanager ==1 | relevantdirector == 1 | direct_supervi
 drop topmanager relevantdirector
 replace direct_supervisor = 0 if top_management ==1 & mgmt_class == "Upper"
 replace colleague = 0 if top_management == 1 & mgmt_class == "Upper"
-	pause
+
 
 *Reporting channels, responses, and retaliations
 	egen n_reports = rowtotal(auditor colleague direct_supervisor gov hotline hr ///
