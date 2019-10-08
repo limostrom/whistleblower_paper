@@ -12,13 +12,13 @@ set scheme s1color, perm
 pause off
 
 *---------------------------
-local run_1A 0
-local run_1B 0
+local run_1A 1
+local run_1B 1
 local run_1C 0
 local run_1D 0
 local run_1E 0
 local run_1F 0
-local run_1G 1
+local run_1G 0
 local run_2 0
 local run_3A 0
 local run_3B 0
@@ -181,14 +181,22 @@ restore
 * Panel B
 if `run_1B' == 1 | `run_all' == 1 {
 *------------------------------------
+summ settled
+	local pct_settled_overall = r(mean)
+summ settlement if settled == 1
+	local avg_stlmt_overall = r(mean)
+
 preserve
 	codebook wb_id
 	collapse (count) cases = case_id (mean) settled avg_settlement = settlement ///
 			 (sum) tot_settlements = settlement, by(wb_type) fast
 	gsort -cases
 		local leftcol "wb_type" // need to set these locals for add_total_row_and_pct_col_to_table.do
-		local tab_cols "cases" // the columns you need to calculate "% of total" for
+		local tab_cols "cases tot_settlements" // the columns you need to calculate "% of total" for
 		include "$repo/add_total_row_and_pct_col_to_table.do"
+			replace settled = `pct_settled_overall' if wb_type == "Total"
+			replace avg_settlement = `avg_stlmt_overall' if wb_type == "Total"
+			drop tot_settlements_pct_str
 		tostring avg_settlement tot_settlements, replace force format(%9.1f)
 		replace settled = settled * 100
 		tostring settled, replace force format(%9.1f)
@@ -201,7 +209,7 @@ preserve
 	export excel "$dropbox/draft_tables.xls", sheet("1.B") sheetrep first(var)
 restore
 } // end Panel B ---------------------------------------------------------------
-
+pause
 *------------------------------------
 * Panel C
 if `run_1C' == 1 | `run_all' == 1 {
